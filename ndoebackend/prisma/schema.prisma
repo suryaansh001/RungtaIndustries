@@ -1,0 +1,307 @@
+// RIC Steel Inventory Management — Prisma Schema v2.0
+// Stack: PostgreSQL (Neon) via Prisma Client JS
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  admin
+  operator
+  viewer
+}
+
+enum CoilGrade {
+  CR
+  HR
+  GC
+  GP
+  BP
+  Chequered
+}
+
+enum ProductForm {
+  coil
+  slit_coil
+  rewound_coil
+  sheet
+  packet
+}
+
+enum ProcStage {
+  received
+  stage1
+  stage2
+  stage3
+  completed
+}
+
+enum ActivityType {
+  Coil_In           @map("Coil-In")
+  Pkt_In            @map("Pkt-In")
+  Coil_Transfer_Out @map("Coil-Transfer-Out")
+  Coil_Transfer_In  @map("Coil-Transfer-In")
+  Pkt_Transfer_Out  @map("Pkt-Transfer-Out")
+  Pkt_Transfer_In   @map("Pkt-Transfer-In")
+  Dispatch
+  Handling
+  Internal_Transfer @map("Internal-Transfer")
+  JW_C              @map("JW-C")
+  JW_R              @map("JW-R")
+  JW_S              @map("JW-S")
+}
+
+enum RateUnit {
+  per_kg
+  per_ton
+  per_coil
+  per_day
+}
+
+enum PricingActivity {
+  storage
+  processing
+  handling
+}
+
+enum TransferType {
+  coil_transfer
+  packet_transfer
+  internal_transfer
+}
+
+enum TransferStatus {
+  pending
+  completed
+  cancelled
+  reversed
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  username      String    @unique
+  email         String?   @unique
+  password_hash String
+  role          Role      @default(operator)
+  is_active     Boolean   @default(true)
+  last_login_at DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  activity_logs ActivityLog[]
+}
+
+model Party {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  gst_number     String?  @unique
+  address        String?
+  mobile_number  String?
+  contact_person String?
+  credit_limit   Decimal? @db.Decimal(12, 2)
+  billing_cycle  String?
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  coils_owned      Coil[]          @relation("CurrentParty")
+  coils_original   Coil[]          @relation("OriginalParty")
+  packets_owned    Packet[]        @relation("PacketCurrentParty")
+  packets_original Packet[]        @relation("PacketOriginalParty")
+  from_transfers   TransferOrder[] @relation("FromParty")
+  to_transfers     TransferOrder[] @relation("ToParty")
+  transactions     Transaction[]
+}
+
+model PricingConfig {
+  id             String          @id @default(uuid())
+  coil_grade     CoilGrade
+  activity_type  PricingActivity
+  rate           Decimal         @db.Decimal(10, 4)
+  rate_unit      RateUnit
+  jw_line        String?
+  effective_from DateTime        @db.Date
+  effective_to   DateTime?       @db.Date
+  is_active      Boolean         @default(true)
+  created_by     String?
+  created_at     DateTime        @default(now())
+
+  @@unique([coil_grade, activity_type, jw_line, effective_from], name: "uq_pricing_no_overlap")
+}
+
+model Coil {
+  id                String      @id @default(uuid())
+  coil_number       String      @unique
+  current_party_id  String
+  original_party_id String
+  current_party     Party       @relation("CurrentParty", fields: [current_party_id], references: [id])
+  original_party    Party       @relation("OriginalParty", fields: [original_party_id], references: [id])
+  product_form      ProductForm @default(coil)
+  coil_grade        CoilGrade
+  size              String
+  thickness_mm      Decimal?    @db.Decimal(6, 3)
+  width_mm          Decimal?    @db.Decimal(8, 2)
+  length_mm         Decimal?    @db.Decimal(8, 2)
+  net_weight_kg     Decimal     @db.Decimal(10, 3)
+  kata_weight_kg    Decimal?    @db.Decimal(10, 3)
+  truck_do_number   String?
+  kanta_name        String?
+  kata_number       String?
+  chalan_number     String?
+  jw_line           String?
+  processing_stage  ProcStage   @default(received)
+  rate_per_kg       Decimal?    @db.Decimal(8, 4)
+  stock_in_date     DateTime    @db.Date
+  remark            String?
+  created_by        String?
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
+
+  transactions   Transaction[]
+  transfer_items TransferLineItem[]
+
+  @@index([current_party_id])
+  @@index([stock_in_date])
+  @@index([coil_grade])
+}
+
+model Packet {
+  id                String      @id @default(uuid())
+  packet_number     String      @unique
+  party_id          String
+  original_party_id String
+  party             Party       @relation("PacketCurrentParty", fields: [party_id], references: [id])
+  original_party    Party       @relation("PacketOriginalParty", fields: [original_party_id], references: [id])
+  size              String
+  thickness_mm      Decimal?    @db.Decimal(6, 2)
+  width_mm          Decimal?    @db.Decimal(8, 2)
+  length_mm         Decimal?    @db.Decimal(8, 2)
+  coil_grade        CoilGrade
+  net_weight_kg     Decimal     @db.Decimal(10, 3)
+  kata_weight_kg    Decimal?    @db.Decimal(10, 3)
+  truck_do_number   String?
+  kanta_name        String?
+  kata_number       String?
+  rate_per_kg       Decimal?    @db.Decimal(8, 4)
+  stock_in_date     DateTime    @db.Date
+  is_dispatched     Boolean     @default(false)
+  remark            String?
+  created_by        String?
+  created_at        DateTime    @default(now())
+
+  transactions   Transaction[]
+  transfer_items TransferLineItem[]
+
+  @@index([party_id])
+  @@index([stock_in_date])
+}
+
+model TransferOrder {
+  id              String         @id @default(uuid())
+  transfer_number String         @unique
+  from_party_id   String
+  to_party_id     String
+  from_party      Party          @relation("FromParty", fields: [from_party_id], references: [id])
+  to_party        Party          @relation("ToParty", fields: [to_party_id], references: [id])
+  transfer_type   TransferType   @default(coil_transfer)
+  status          TransferStatus @default(pending)
+  transfer_date   DateTime       @db.Date
+  is_reversible   Boolean        @default(false)
+  remark          String?
+  created_by      String?
+  created_at      DateTime       @default(now())
+
+  line_items   TransferLineItem[]
+  transactions Transaction[]
+
+  @@index([from_party_id])
+  @@index([to_party_id])
+  @@index([transfer_date])
+}
+
+model TransferLineItem {
+  id                        String        @id @default(uuid())
+  transfer_order_id         String
+  transfer_order            TransferOrder @relation(fields: [transfer_order_id], references: [id])
+  coil_id                   String?
+  packet_id                 String?
+  coil                      Coil?         @relation(fields: [coil_id], references: [id])
+  packet                    Packet?       @relation(fields: [packet_id], references: [id])
+  coil_number_snapshot      String
+  weight_kg_snapshot        Decimal?      @db.Decimal(10, 3)
+  size_snapshot             String?
+  snapshot_processing_stage ProcStage?
+  prev_party_id             String
+  new_party_id              String
+  created_at                DateTime      @default(now())
+
+  @@index([transfer_order_id])
+}
+
+model Transaction {
+  id                String         @id @default(uuid())
+  txn_date          DateTime       @db.Date
+  activity          ActivityType
+  party_id          String
+  party             Party          @relation(fields: [party_id], references: [id])
+  coil_id           String?
+  packet_id         String?
+  coil              Coil?          @relation(fields: [coil_id], references: [id])
+  packet            Packet?        @relation(fields: [packet_id], references: [id])
+  transfer_order_id String?
+  transfer_order    TransferOrder? @relation(fields: [transfer_order_id], references: [id])
+  coil_grade        CoilGrade?
+  net_weight_kg     Decimal?       @db.Decimal(10, 3)
+  output_qty        Decimal?       @db.Decimal(10, 3)
+  rate_applied      Decimal?       @db.Decimal(8, 4)
+  amount_charged    Decimal?       @db.Decimal(12, 2)
+  chalan_number     String?
+  truck_do_number   String?
+  jw_line           String?
+  remark            String?
+  created_by        String?
+  created_at        DateTime       @default(now())
+
+  @@index([party_id, txn_date])
+  @@index([coil_id])
+  @@index([txn_date])
+  @@index([activity])
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  user_id     String?
+  user        User?    @relation(fields: [user_id], references: [id])
+  action_type String
+  entity_type String?
+  entity_id   String?
+  description String
+  ip_address  String?
+  created_at  DateTime @default(now())
+}
+
+model Settings {
+  id                String   @id @default(uuid())
+  gst_percentage    Float    @default(18)
+  company_name      String   @default("RIC Steel Industries")
+  company_address   String   @default("")
+  company_mobile    String   @default("")
+  company_email     String   @default("")
+  invoice_prefix    String   @default("INV")
+  invoice_due_days  Int      @default(30)
+  auto_overdue_days Int      @default(0)
+  bank_details      String   @default("")
+  footer_notes      String   @default("")
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+}

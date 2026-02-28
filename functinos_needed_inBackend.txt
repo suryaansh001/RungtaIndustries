@@ -1,0 +1,505 @@
+A. Authentication & Roles
+
+User login with JWT
+
+Role-based access:
+
+admin
+
+operator
+
+viewer
+
+Route protection
+
+Password hashing (bcrypt)
+
+Token validation middleware
+
+B. Party / Client Management
+
+Create client
+
+Update client
+
+Soft delete client
+
+List clients with pagination + search
+
+Store:
+
+name
+
+GST
+
+contact details
+
+billing cycle
+
+credit limit
+
+C. Product / Coil / Packet Management
+For Products (Stage-Based + Direct)
+
+Create product
+
+Store:
+
+unique ID
+
+client
+
+quantity
+
+price per unit
+
+category (stage-based / direct)
+
+created date
+
+View product list with filters
+
+View product detail
+
+D. Stage-Based Workflow (4 Stages)
+
+Stage progression:
+stage1 → stage2 → stage3 → stage4 → completed
+
+Enforce sequential stage movement
+
+Store:
+
+current stage
+
+stage timestamps
+
+Write transaction entry on stage update
+
+E. Transfer System (if applicable for coils)
+
+Create transfer order
+
+Validate ownership
+
+Lock rows (SELECT FOR UPDATE)
+
+Update current owner
+
+Store transfer header + line items
+
+Write transaction entries:
+
+transfer out
+
+transfer in
+
+Rollback if any error
+
+F. Transaction Ledger (Inventory Events)
+
+Append-only table
+
+Records:
+
+product created
+
+stage updated
+
+transfer completed
+
+No update/delete allowed
+
+Supports filtering by:
+
+client
+
+product
+
+date
+
+activity type
+
+2️⃣ NEW FUNCTIONALITY REQUIRED (FINANCIAL & BILLING LAYER)
+
+This is the missing 40%.
+
+A. Invoice Lifecycle System
+1. Create Invoice (Draft)
+
+Create invoice record with:
+
+invoice_number (custom allowed)
+
+client_id
+
+invoice_date
+
+due_date
+
+status = Draft
+
+Add line items:
+
+description
+
+quantity
+
+rate
+
+amount
+
+Calculate:
+
+subtotal
+
+GST
+
+total
+
+Allow full editing while status = Draft
+
+2. Serial Number Handling
+
+Backend provides:
+GET last_invoice_number
+
+Backend validates uniqueness of invoice_number on create
+
+Backend does NOT auto-generate serial
+
+Invoice number immutable after status != Draft
+
+3. Update Draft Invoice
+
+Allowed only if status == Draft
+
+Can:
+
+change invoice number
+
+edit line items
+
+modify rates
+
+Recalculate totals on each update
+
+4. Generate Invoice
+
+Change status Draft → Generated
+
+Lock invoice (no structural edits allowed)
+
+Freeze totals
+
+Write ledger entry:
+Debit: Client Receivable
+Credit: Revenue
+
+Store generated timestamp
+
+5. Mark as Sent
+
+Change status → Sent
+
+No financial impact
+
+6. Cancel Invoice (Admin Only)
+
+Only if not fully paid
+
+Change status → Cancelled
+
+Write reversing ledger entry
+
+Keep invoice record (no deletion)
+
+B. Payment System
+1. Add Payment
+
+Input:
+
+invoice_id
+
+amount
+
+date
+
+payment_mode
+
+reference
+
+Validate:
+
+amount <= outstanding
+
+Update:
+
+invoice.paid_amount
+
+Auto-update status:
+
+Paid
+
+Partially Paid
+
+Write ledger entry:
+Debit: Cash/Bank
+Credit: Accounts Receivable
+
+2. Reverse Payment (Admin Only)
+
+Cannot delete payment
+
+Create reversal entry
+
+Update invoice paid_amount accordingly
+
+Write reversing ledger entry
+
+C. Client Ledger
+
+Endpoint must provide:
+
+All invoices (debit)
+
+All payments (credit)
+
+Adjustments (if any)
+
+For each entry:
+
+date
+
+reference type
+
+reference number
+
+debit
+
+credit
+
+running balance
+
+Balance must be computed using SQL window function.
+
+No manual stored balance field.
+
+D. Aging Report
+
+For all unpaid invoices:
+
+Group outstanding amount by:
+
+0–30 days
+
+31–60 days
+
+61–90 days
+
+90+ days
+
+Based on:
+current_date - due_date
+
+Return:
+
+client-wise aging summary
+
+total outstanding
+
+E. Revenue Analytics
+
+Provide aggregated values:
+
+storage revenue
+
+processing revenue
+
+direct revenue
+
+total revenue
+
+monthly revenue breakdown
+
+revenue per client
+
+Based strictly on generated invoices, not draft.
+
+F. Bulk Invoice Generation
+
+Input:
+
+month
+
+year
+
+optional client list
+
+Steps:
+
+Fetch all billable items for that period
+
+Group by client
+
+Create draft or generated invoices in single DB transaction
+
+Return:
+
+number created
+
+number failed
+
+error details
+
+Must be atomic per client invoice.
+
+G. Billing Settings
+
+Store and retrieve:
+
+GST %
+
+invoice_prefix
+
+default_payment_terms_days
+
+auto_overdue_days
+
+company_name
+
+address
+
+bank_details
+
+footer_notes
+
+Used during invoice creation and PDF generation.
+
+H. Overdue Handling
+
+Invoice automatically considered Overdue if:
+status != Paid
+AND current_date > due_date
+
+No manual toggle required
+
+Status computed dynamically or updated via scheduled job
+
+I. Billing Activity Log
+
+Append-only log for:
+
+invoice created
+
+invoice generated
+
+invoice sent
+
+payment added
+
+invoice cancelled
+
+payment reversed
+
+Store:
+
+user_id
+
+action
+
+timestamp
+
+reference
+
+No update/delete.
+
+3️⃣ SYSTEM-WIDE RULES
+
+These are non-negotiable logic rules.
+
+1. Financial Integrity
+
+All invoice + payment operations must run inside DB transaction.
+
+No partial invoice creation.
+
+No partial payment application.
+
+2. Decimal Precision
+
+All money values stored as NUMERIC in PostgreSQL.
+
+Never use JS floating arithmetic.
+
+If calculating in JS, use decimal library.
+
+3. Immutability Rules
+
+Cannot:
+
+Edit generated invoice line items
+
+Edit invoice number after generation
+
+Delete transactions
+
+Delete payments
+
+Delete invoices (only cancel)
+
+4. Role Enforcement
+
+Admin:
+
+Cancel invoice
+
+Reverse payment
+
+Modify settings
+
+Operator:
+
+Create invoice
+
+Edit draft
+
+Add payment
+
+Viewer:
+
+Read-only
+
+5. Concurrency Control
+
+For:
+
+Transfers
+
+Bulk billing
+
+Payment application
+
+Use:
+BEGIN
+SELECT FOR UPDATE
+COMMIT
+
+Return 409 on conflict.
+
+🎯 Final Functional Summary
+
+Your backend must now support:
+
+Inventory Tracking
+Stage-Based Production
+Ownership Transfers
+Immutable Transaction Ledger
+Draft → Generated Invoice Lifecycle
+Editable Serial Before Finalization
+Payment Tracking
+Client Ledger Computation
+Aging Analysis
+Revenue Aggregation
+Bulk Invoice Generation
+Financial Activity Audit

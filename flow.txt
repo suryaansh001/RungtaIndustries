@@ -1,0 +1,1210 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║         RIC STEEL INVENTORY MANAGEMENT — AGENT FLOW INSTRUCTIONS           ║
+║         For Claude Sonnet 4.6 in Agent Mode                                ║
+║         Backend: FastAPI + PostgreSQL | Schema v2.0 Ledger-First           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+HOW TO USE THIS FILE
+────────────────────
+Each PROMPT block below is a standalone instruction you paste into Claude
+agent mode ONE AT A TIME. Wait for each step to finish and verify before
+moving to the next. The agent will read existing files, write code, run
+commands, and confirm completion.
+
+The prompts are ordered. Do not skip steps. Each step depends on the one
+before it.
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 0 — PROJECT SCAFFOLD
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Create the full FastAPI project folder structure for a steel inventory
+management system called "ric_steel". Create it in the current directory.
+
+The structure must be exactly:
+
+  ric_steel/
+  ├── app/
+  │   ├── __init__.py
+  │   ├── main.py                  ← FastAPI app entry point
+  │   ├── config.py                ← Settings via pydantic-settings
+  │   ├── database.py              ← SQLAlchemy engine + session
+  │   ├── models/
+  │   │   ├── __init__.py
+  │   │   ├── enums.py             ← All Python enums
+  │   │   ├── user.py
+  │   │   ├── party.py
+  │   │   ├── pricing.py
+  │   │   ├── coil.py
+  │   │   ├── packet.py
+  │   │   ├── transfer.py
+  │   │   └── transaction.py
+  │   ├── schemas/
+  │   │   ├── __init__.py
+  │   │   ├── user.py              ← Pydantic request/response schemas
+  │   │   ├── party.py
+  │   │   ├── pricing.py
+  │   │   ├── coil.py
+  │   │   ├── packet.py
+  │   │   ├── transfer.py
+  │   │   └── transaction.py
+  │   ├── routers/
+  │   │   ├── __init__.py
+  │   │   ├── auth.py
+  │   │   ├── parties.py
+  │   │   ├── pricing.py
+  │   │   ├── coils.py
+  │   │   ├── packets.py
+  │   │   ├── transfers.py
+  │   │   ├── transactions.py
+  │   │   └── dashboard.py
+  │   ├── services/
+  │   │   ├── __init__.py
+  │   │   ├── auth.py
+  │   │   ├── coil_service.py
+  │   │   ├── packet_service.py
+  │   │   ├── transfer_service.py  ← Contains SELECT FOR UPDATE NOWAIT logic
+  │   │   └── billing_service.py
+  │   ├── dependencies.py          ← get_db(), get_current_user()
+  │   └── exceptions.py            ← Custom HTTP exceptions
+  ├── alembic/                     ← DB migrations
+  │   ├── env.py
+  │   └── versions/
+  ├── tests/
+  │   ├── __init__.py
+  │   ├── conftest.py
+  │   ├── test_parties.py
+  │   ├── test_coils.py
+  │   ├── test_packets.py
+  │   └── test_transfers.py
+  ├── init_db.py                   ← (already exists — copy from provided file)
+  ├── alembic.ini
+  ├── requirements.txt
+  ├── .env.example
+  ├── .gitignore
+  └── README.md
+
+Create every __init__.py and placeholder file. In main.py wire up all routers.
+In requirements.txt include:
+  fastapi, uvicorn[standard], sqlalchemy, psycopg2-binary, pydantic-settings,
+  alembic, python-jose[cryptography], passlib[bcrypt], python-multipart,
+  pytest, httpx, pytest-asyncio
+
+In .env.example include all required env vars with placeholder values.
+Do not write business logic yet — just the scaffold with correct imports
+and empty route stubs.
+
+VERIFY: Run  find ric_steel -type f  and confirm all files exist.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 1 — CONFIG + DATABASE CONNECTION
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+In ric_steel/app/config.py write a Settings class using pydantic-settings
+that reads these env vars:
+
+  DATABASE_URL           full postgres connection string
+  DB_HOST                default localhost
+  DB_PORT                default 5432
+  DB_NAME                default ric_steel
+  DB_USER                default postgres
+  DB_PASSWORD            (no default — required)
+  SECRET_KEY             JWT signing key (no default — required)
+  ALGORITHM              default HS256
+  ACCESS_TOKEN_EXPIRE_MINUTES  default 60
+  APP_ENV                default development
+  DEBUG                  default True
+
+Build DATABASE_URL from parts if not provided directly.
+Add a @property called async_database_url that replaces postgresql:// with
+postgresql+asyncpg:// for future async support.
+
+In ric_steel/app/database.py:
+  - Create SQLAlchemy engine from settings.DATABASE_URL
+  - Create SessionLocal with sessionmaker
+  - Define Base = declarative_base()
+  - Write a get_db() generator that yields a session and closes it after
+
+In ric_steel/app/dependencies.py:
+  - Import get_db from database.py
+  - Write get_current_user() stub (JWT decode — implement properly in Step 4)
+
+In ric_steel/app/main.py:
+  - Create FastAPI app with title, description, version
+  - Add CORSMiddleware allowing all origins (tighten in production)
+  - Include all routers with /api/v1 prefix
+  - Add a GET /health endpoint returning {"status": "ok", "version": "1.0.0"}
+
+VERIFY: Run  cd ric_steel && uvicorn app.main:app --reload  and confirm
+        the /health endpoint returns 200. Then stop the server.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 2 — MODELS (SQLAlchemy ORM)
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT FOR AGENT:
+The schema is v2.0 Ledger-First. Key rules:
+  - Master tables store identity ONLY
+  - Ledger (transactions table) stores truth
+  - NO stored computed columns anywhere:
+      coils:        NO holding_days, current_weight_kg, coil_balance, status
+      packets:      NO current_balance, status
+      transactions: NO coil_balance_after
+  - All ENUMs — no free-text for any status/type field
+  - processing_stage on coils is ENUM (proc_stage), not VARCHAR
+  - rate_unit on pricing_config is ENUM (rate_unit), not VARCHAR
+  - transfer status is ENUM (transfer_status), not VARCHAR
+  - pricing_config has UNIQUE on (product_type, activity_type, jw_line, effective_from)
+  - transfer_orders has CHECK: from_party_id != to_party_id
+  - transactions has CHECK: net_weight_kg != 0
+  - net_weight_kg sign: +ve = inflow, -ve = outflow
+
+PROMPT:
+───────
+Write all SQLAlchemy ORM models for the RIC Steel system.
+Place enums in app/models/enums.py, each table in its own file.
+
+ENUMS to define (all as Python enum.Enum + str mixin):
+  UserRole:       admin, operator, viewer
+  ProductType:    coil, packet, slit_coil, rewound_coil, sheet
+  CoilType:       CR, HR, GC, GP, BP, Chequered
+  ActivityType:   Coil-In, Pkt-In, Coil-Transfer-Out, Coil-Transfer-In,
+                  Pkt-Transfer-Out, Pkt-Transfer-In, Dispatch, Handling,
+                  Internal-Transfer, JW-C, JW-R, JW-S
+  ProcStage:      received, stage1, stage2, stage3, completed
+  RateUnit:       per_kg, per_ton, per_coil, per_day
+  PricingActivity: storage, processing, handling
+  TransferType:   coil_transfer, packet_transfer, internal_transfer
+  TransferStatus: pending, completed, cancelled, reversed
+
+TABLES:
+
+  users:
+    id, username(UQ), email(UQ), password_hash, role(ENUM),
+    is_active, last_login_at, created_at, updated_at
+
+  parties:
+    id, name(UQ), gst_number, address, mobile_number, contact_person,
+    credit_limit(NUMERIC 12,2), billing_cycle, is_active, created_at
+
+  pricing_config:
+    id, product_type(ENUM), activity_type(ENUM), rate, rate_unit(ENUM),
+    jw_line, effective_from, effective_to, created_by(FK→users), created_at
+    UNIQUE(product_type, activity_type, jw_line, effective_from)
+    CHECK(rate > 0)
+
+  packets:
+    id, packet_number(UQ), party_id(FK→parties), original_party_id(FK→parties),
+    size, thickness_mm, width_mm, length_mm, coil_type(ENUM), net_weight_kg,
+    kata_weight_kg, truck_do_number, kanta_name, kata_number, rate_per_kg,
+    stock_in_date, unit, remark, created_by(FK→users), created_at
+    CHECK(net_weight_kg > 0)
+    NO status column. NO current_balance column.
+
+  coils:
+    id, coil_number(UQ), current_party_id(FK→parties),
+    original_party_id(FK→parties), product_type(ENUM), size,
+    thickness_mm(IDX), width_mm, length_mm, coil_type(ENUM), net_weight_kg,
+    kata_weight_kg, truck_do_number, kanta_name, kata_number, chalan_number,
+    jw_line, processing_stage(ENUM proc_stage, default=received),
+    rate_per_kg, stock_in_date(IDX), remark,
+    created_by(FK→users), created_at, updated_at
+    CHECK(net_weight_kg > 0)
+    NO holding_days. NO current_weight_kg. NO coil_balance. NO status.
+
+  coil_processing_outputs:
+    id, coil_id(FK→coils,IDX), stage(ENUM), output_type, output_quantity,
+    output_weight_kg, scrap_weight_kg, plates_count, tukda_count,
+    snapshot_processing_stage(ENUM), processed_date, jw_line,
+    created_by(FK→users), created_at(IMMUTABLE)
+
+  transfer_orders:
+    id, transfer_number(UQ), from_party_id(FK→parties,IDX),
+    to_party_id(FK→parties,IDX), transfer_type(ENUM), status(ENUM,default=pending),
+    transfer_date, is_reversible(BOOL,default=False), remark,
+    created_by(FK→users), created_at
+    CHECK(from_party_id != to_party_id)
+    NO total_coils. NO total_weight. Compute from line_items.
+
+  transfer_line_items:
+    id, transfer_order_id(FK→transfer_orders,IDX), coil_id(FK→coils,IDX),
+    packet_id(FK→packets,IDX), coil_number_snapshot, weight_kg_snapshot,
+    size_snapshot, snapshot_processing_stage(ENUM), prev_party_id(FK→parties),
+    new_party_id(FK→parties), created_at(IMMUTABLE)
+
+  transactions (IMMUTABLE LEDGER):
+    id, txn_date(IDX), activity(ENUM,IDX), party_id(FK→parties,IDX),
+    coil_id(FK→coils,IDX), packet_id(FK→packets,IDX),
+    transfer_order_id(FK→transfer_orders), product_type(ENUM,IDX),
+    net_weight_kg (sign: +ve inflow / -ve outflow), output_qty,
+    rate_applied, amount_charged, chalan_number, truck_do_number,
+    jw_line, remark, created_by(FK→users), created_at(IMMUTABLE)
+    CHECK(net_weight_kg != 0)
+    NO coil_balance_after column.
+
+After writing models, also add these composite indexes:
+  Index("idx_txn_coil_date",   Transaction.coil_id,         Transaction.txn_date)
+  Index("idx_txn_party_date",  Transaction.party_id,        Transaction.txn_date)
+  Index("idx_transfer_from",   TransferOrder.from_party_id, TransferOrder.transfer_date)
+  Index("idx_transfer_to",     TransferOrder.to_party_id,   TransferOrder.transfer_date)
+
+In app/models/__init__.py export all models and Base.
+
+VERIFY: Run  python -c "from app.models import Coil, Transaction, TransferOrder; print('OK')"
+        from inside ric_steel/. It must print OK with no errors.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 3 — PYDANTIC SCHEMAS
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Write all Pydantic v2 schemas for the RIC Steel API.
+Each file in app/schemas/ must have: Base, Create, Update, Response schemas.
+
+Rules:
+  - All schemas inherit from pydantic.BaseModel
+  - Use model_config = ConfigDict(from_attributes=True) on Response schemas
+  - Dates as datetime.date, timestamps as datetime.datetime
+  - All ENUM fields use the Python enums from app/models/enums.py
+  - Optional fields use Optional[type] = None
+  - Response schemas include computed display fields where needed
+
+app/schemas/user.py:
+  UserCreate:   username, email, password(plain), role
+  UserUpdate:   email?, role?, is_active?
+  UserResponse: id, username, email, role, is_active, created_at, updated_at
+
+app/schemas/party.py:
+  PartyCreate:   name, gst_number?, address?, mobile_number?, contact_person?,
+                 credit_limit?, billing_cycle?
+  PartyUpdate:   all fields optional
+  PartyResponse: all columns + is_active
+  PartyStockSummary: party_id, party_name, total_coils_in_stock,
+                     total_coil_weight_kg, avg_coil_holding_days,
+                     max_coil_holding_days, total_packets_in_stock,
+                     total_packet_weight_kg, total_billed_amount,
+                     last_activity_date
+
+app/schemas/pricing.py:
+  PricingCreate:   product_type, activity_type, rate, rate_unit, jw_line?,
+                   effective_from, effective_to?
+  PricingResponse: all fields + created_at
+
+app/schemas/coil.py:
+  CoilCreate:   coil_number, party_id, product_type, size, coil_type,
+                net_weight_kg, kata_weight_kg?, truck_do_number?,
+                kanta_name?, kata_number?, chalan_number?, jw_line?,
+                stock_in_date, remark?
+                (rate_per_kg auto-filled from pricing_config — not in Create)
+  CoilUpdate:   processing_stage?, jw_line?, remark?
+                (current_party_id NOT updatable directly — only via transfer)
+  CoilResponse: all columns
+  CoilCurrentState: coil_number, size, coil_type, original_weight_kg,
+                    remaining_weight_kg, holding_days, current_party,
+                    original_party, processing_stage, status
+
+app/schemas/packet.py:
+  PacketCreate:   packet_number, party_id, size, coil_type, net_weight_kg,
+                  kata_weight_kg?, truck_do_number?, kanta_name?,
+                  kata_number?, stock_in_date, remark?
+  PacketUpdate:   remark?
+  PacketResponse: all columns
+  PacketStockResponse: includes holding_days, storage_charge, status
+                       (from vw_packet_stock view)
+
+app/schemas/transfer.py:
+  TransferCreate:  from_party_id, to_party_id, transfer_type, transfer_date,
+                   coil_ids(List[int]), is_reversible?, remark?
+  TransferResponse: transfer_number, from_party, to_party, transfer_type,
+                    status, transfer_date, is_reversible, total_coils(computed),
+                    total_weight_kg(computed), line_items, created_at
+  TransferLineItemResponse: coil_number_snapshot, weight_kg_snapshot,
+                             size_snapshot, snapshot_processing_stage,
+                             prev_party, new_party
+
+app/schemas/transaction.py:
+  TransactionResponse: id, txn_date, activity, party_id, coil_id,
+                       packet_id, product_type, net_weight_kg,
+                       rate_applied, amount_charged, remark, created_at
+  RunningBalanceResponse: txn_id, txn_date, coil_number, activity,
+                          net_weight_kg, running_balance_kg, amount_charged
+
+Also create app/schemas/common.py with:
+  PaginatedResponse[T] — generic wrapper: items, total, page, size, pages
+
+VERIFY: Run  python -c "from app.schemas.coil import CoilCreate, CoilResponse; print('OK')"
+        It must print OK.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 4 — AUTHENTICATION
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Implement JWT authentication in app/services/auth.py and app/routers/auth.py.
+
+app/services/auth.py:
+  - hash_password(plain: str) → str          using passlib bcrypt
+  - verify_password(plain, hashed) → bool
+  - create_access_token(data: dict) → str     using python-jose, exp from settings
+  - decode_token(token: str) → dict           raises 401 if invalid/expired
+  - get_user_by_username(db, username) → User | None
+
+app/dependencies.py (update):
+  - get_current_user(token=Depends(oauth2_scheme), db=Depends(get_db)) → User
+      decode token → get user → raise 401 if not found or not active
+  - require_admin(user=Depends(get_current_user)) → User
+      raise 403 if user.role != admin
+  - require_operator(user=Depends(get_current_user)) → User
+      raise 403 if user.role not in [admin, operator]
+
+app/routers/auth.py:
+  POST /api/v1/auth/login
+    body: username + password (OAuth2PasswordRequestForm)
+    returns: {"access_token": "...", "token_type": "bearer", "role": "..."}
+
+  GET  /api/v1/auth/me
+    requires: Bearer token
+    returns: UserResponse of current user
+
+  POST /api/v1/auth/register  (admin only)
+    body: UserCreate
+    returns: UserResponse
+    hashes password before saving
+
+app/exceptions.py:
+  Define: CredentialsException, PermissionException, NotFoundException,
+          ConflictException, BusinessRuleException
+  Each as HTTPException subclass with appropriate status codes.
+
+VERIFY:
+  Start server: uvicorn app.main:app --reload
+  Test: POST /api/v1/auth/login with admin / Admin@123
+  Should return access_token. Then test GET /api/v1/auth/me with that token.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 5 — PARTIES ROUTER
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Implement the parties CRUD router in app/routers/parties.py.
+
+Endpoints:
+
+  GET    /api/v1/parties
+    - Query params: search(str?), is_active(bool?), page(int=1), size(int=20)
+    - Returns: PaginatedResponse[PartyResponse]
+    - Filter by name ILIKE %search% if provided
+
+  GET    /api/v1/parties/{party_id}
+    - Returns: PartyResponse
+    - Raise 404 if not found
+
+  POST   /api/v1/parties
+    - Body: PartyCreate
+    - Returns: PartyResponse
+    - Requires: operator role
+    - Raise 409 if name already exists
+
+  PUT    /api/v1/parties/{party_id}
+    - Body: PartyUpdate
+    - Returns: PartyResponse
+    - Requires: operator role
+    - Only update provided fields (partial update)
+
+  DELETE /api/v1/parties/{party_id}
+    - Soft delete: set is_active = False
+    - Requires: admin role
+    - Raise 400 if party has active coils in stock
+
+  GET    /api/v1/parties/{party_id}/coils
+    - Returns all coils currently owned by this party
+    - Query params: status(str?), page, size
+
+  GET    /api/v1/parties/{party_id}/packets
+    - Returns all packets currently owned by this party
+
+  GET    /api/v1/parties/{party_id}/transactions
+    - Returns transaction history for this party
+    - Query params: from_date, to_date, activity, page, size
+
+VERIFY:
+  GET /api/v1/parties → should return paginated list of seeded parties.
+  POST /api/v1/parties with new party → should return 201 with new party.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 6 — PRICING CONFIG ROUTER
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Implement the pricing config router in app/routers/pricing.py.
+
+app/services/billing_service.py:
+  - get_active_rate(db, product_type, activity_type, jw_line=None) → Decimal | None
+      Query pricing_config where effective_to IS NULL
+      and effective_from <= today, ordered by effective_from DESC, limit 1.
+      This is the function called during Coil-In and Pkt-In to freeze the rate.
+
+Endpoints in app/routers/pricing.py:
+
+  GET  /api/v1/pricing
+    - Returns all pricing configs
+    - Query params: product_type?, activity_type?, active_only(bool=True)
+    - If active_only: filter where effective_to IS NULL
+
+  GET  /api/v1/pricing/active
+    - Returns only currently active rate for each product+activity+line combo
+    - Used by frontend to auto-fill rate field in add-coil form
+
+  POST /api/v1/pricing
+    - Body: PricingCreate
+    - Requires: admin role
+    - Before insert: check UNIQUE constraint manually and raise 409 with
+      clear message if overlap exists
+    - When adding new rate for existing combo: auto-set effective_to on old
+      rate to (new effective_from - 1 day)
+    - Returns: PricingResponse
+
+  PUT  /api/v1/pricing/{id}
+    - Body: rate?, effective_to?
+    - Requires: admin role
+    - Cannot change product_type, activity_type, jw_line (identity fields)
+
+VERIFY:
+  GET /api/v1/pricing/active → should list all active rates.
+  POST a duplicate pricing entry → should get 409 with clear message.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 7 — COILS ROUTER + SERVICE
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Implement coil management in app/services/coil_service.py and
+app/routers/coils.py.
+
+app/services/coil_service.py:
+
+  create_coil(db, data: CoilCreate, user_id) → Coil:
+    1. Check coil_number uniqueness — raise 409 if exists
+    2. Validate party_id exists — raise 404 if not
+    3. Auto-fill rate_per_kg via billing_service.get_active_rate()
+    4. Set original_party_id = party_id (immutable from here)
+    5. Insert Coil row
+    6. Write Transaction(activity=Coil-In, net_weight_kg=+weight, ...)
+       rate_applied and amount_charged must be frozen at insert time
+    7. Commit and return coil
+
+  update_processing_stage(db, coil_id, stage: ProcStage, user_id) → Coil:
+    - Only processing_stage and jw_line are updatable
+    - Write no transaction for stage update (it's metadata, not a ledger event)
+    - Return updated coil
+
+  add_processing_output(db, coil_id, output_data, user_id) → CoilProcessingOutput:
+    - Validate remaining weight won't go negative
+      (net_weight_kg - existing outputs - new output_weight_kg >= 0)
+    - Insert CoilProcessingOutput row
+    - Write Transaction(activity=JW-C or JW-R or JW-S, net_weight_kg=-output_weight)
+    - Return output
+
+  get_coil_state(db, coil_id) → dict:
+    - Query vw_coil_current_state for this coil_id
+    - Returns remaining_weight_kg, holding_days, status etc.
+
+  get_coil_ledger(db, coil_id) → list:
+    - Query vw_coil_running_balance filtered by coil_id
+    - Returns full transaction history with running balance
+
+Endpoints in app/routers/coils.py:
+
+  GET    /api/v1/coils
+    Query params: party_id?, product_type?, coil_type?, status?,
+                  thickness_mm?, jw_line?, from_date?, to_date?, page, size
+    Returns: PaginatedResponse[CoilCurrentState] (from view)
+
+  GET    /api/v1/coils/{coil_id}
+    Returns: CoilResponse
+
+  GET    /api/v1/coils/{coil_id}/state
+    Returns: CoilCurrentState (from vw_coil_current_state)
+    Includes remaining_weight_kg, holding_days, status
+
+  GET    /api/v1/coils/{coil_id}/ledger
+    Returns: list of RunningBalanceResponse (from vw_coil_running_balance)
+    This is the full history of the coil with running balance at each step
+
+  POST   /api/v1/coils
+    Body: CoilCreate
+    Requires: operator role
+    Returns: CoilResponse (201)
+
+  PUT    /api/v1/coils/{coil_id}/stage
+    Body: { "processing_stage": "stage2", "jw_line": "L3" }
+    Requires: operator role
+    Returns: CoilResponse
+
+  POST   /api/v1/coils/{coil_id}/output
+    Body: { stage, output_type, output_quantity, output_weight_kg,
+            scrap_weight_kg, plates_count?, tukda_count?, processed_date,
+            jw_line? }
+    Requires: operator role
+    Returns: CoilProcessingOutput response
+
+  DELETE /api/v1/coils/{coil_id}
+    Soft delete only if coil has no transactions.
+    Requires: admin role.
+
+VERIFY:
+  POST /api/v1/coils with valid data → 201 with coil
+  GET /api/v1/coils/{id}/state → remaining_weight_kg and holding_days present
+  GET /api/v1/coils/{id}/ledger → running balance visible
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 8 — PACKETS ROUTER + SERVICE
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Implement packet management in app/services/packet_service.py and
+app/routers/packets.py.
+
+app/services/packet_service.py:
+
+  create_packet(db, data: PacketCreate, user_id) → Packet:
+    1. Check packet_number uniqueness — raise 409
+    2. Validate party_id — raise 404
+    3. Auto-fill rate_per_kg from billing_service.get_active_rate()
+    4. Set original_party_id = party_id
+    5. Insert Packet
+    6. Write Transaction(activity=Pkt-In, net_weight_kg=+weight)
+       Freeze rate_applied and amount_charged
+    7. Return packet
+
+  get_packet_stock(db, packet_id) → dict:
+    - Query vw_packet_stock for this packet_id
+    - Returns holding_days, storage_charge, status
+
+Endpoints in app/routers/packets.py:
+
+  GET    /api/v1/packets
+    Query params: party_id?, coil_type?, status?,
+                  from_date?, to_date?, page, size
+    Queries vw_packet_stock view for status and holding_days
+    Returns: PaginatedResponse[PacketStockResponse]
+
+  GET    /api/v1/packets/{packet_id}
+    Returns: PacketStockResponse (from view — includes status, holding_days)
+
+  POST   /api/v1/packets
+    Body: PacketCreate
+    Requires: operator role
+    Returns: PacketResponse (201)
+
+  PUT    /api/v1/packets/{packet_id}
+    Body: PacketUpdate (remark only)
+    Requires: operator role
+
+  DELETE /api/v1/packets/{packet_id}
+    Soft delete only if no transactions exist
+    Requires: admin
+
+VERIFY:
+  POST /api/v1/packets → 201
+  GET /api/v1/packets/{id} → includes holding_days and status fields
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 9 — TRANSFER SERVICE (MOST CRITICAL STEP)
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT FOR AGENT:
+This is the most important business logic in the system.
+The transfer service MUST use SELECT FOR UPDATE NOWAIT to prevent two operators
+from transferring the same coil simultaneously.
+All 8 steps inside the service must run in a single database transaction.
+If ANY step fails, the ENTIRE transfer must rollback (no partial state).
+
+PROMPT:
+───────
+Implement the transfer service in app/services/transfer_service.py and
+router in app/routers/transfers.py.
+
+app/services/transfer_service.py:
+
+  execute_coil_transfer(db, data: TransferCreate, user_id) → TransferOrder:
+
+    This function must run entirely inside a single DB transaction.
+    Steps:
+
+    STEP A — Validate parties:
+      - from_party and to_party must both exist and be active
+      - from_party_id must != to_party_id (also enforced by DB CHECK)
+      - Raise 404 if either not found, 400 if same party
+
+    STEP B — Lock coils (CRITICAL — prevents race condition):
+      SELECT id, coil_number, current_party_id, net_weight_kg,
+             size, processing_stage
+      FROM coils
+      WHERE id = ANY(:coil_ids)
+      FOR UPDATE NOWAIT
+      -- NOWAIT: if another transaction holds the lock, raise immediately
+      -- Do NOT use FOR UPDATE (without NOWAIT) — silent queue = silent corruption
+
+      If lock fails → raise 409 "One or more coils are being modified.
+                                  Please retry in a moment."
+
+    STEP C — Validate ownership:
+      For EVERY locked coil:
+        - coil.current_party_id must == data.from_party_id
+        - Raise 400 with specific coil_number if any coil doesn't belong to from_party
+      This prevents transferring coils you don't own.
+
+    STEP D — Create TransferOrder:
+      INSERT transfer_orders row with status=pending
+
+    STEP E — Create TransferLineItems:
+      For each coil, INSERT transfer_line_items with:
+        - coil_number_snapshot = coil.coil_number   (frozen NOW)
+        - weight_kg_snapshot   = coil.net_weight_kg  (frozen NOW)
+        - size_snapshot        = coil.size           (frozen NOW)
+        - snapshot_processing_stage = coil.processing_stage (frozen NOW)
+        - prev_party_id = from_party_id
+        - new_party_id  = to_party_id
+
+    STEP F — Update coil ownership (the actual transfer):
+      UPDATE coils SET current_party_id = to_party_id
+      WHERE id IN (coil_ids)
+      This is the one and only mutation.
+
+    STEP G — Write ledger (both sides):
+      For EACH coil write TWO transaction rows:
+        Row 1: activity=Coil-Transfer-Out, party_id=from_party_id,
+               net_weight_kg = -coil.net_weight_kg  (NEGATIVE)
+        Row 2: activity=Coil-Transfer-In,  party_id=to_party_id,
+               net_weight_kg = +coil.net_weight_kg  (POSITIVE)
+
+    STEP H — Mark order complete:
+      UPDATE transfer_orders SET status=completed
+
+    On any exception → db.rollback() and re-raise
+    On success → db.commit()
+
+  reverse_transfer(db, transfer_order_id, user_id) → TransferOrder:
+    - Check is_reversible == True on the order, else raise 400
+    - Check status == completed, else raise 400
+    - Re-run execute_coil_transfer in REVERSE (to→from, same coils)
+    - Mark original order status = reversed
+
+Endpoints in app/routers/transfers.py:
+
+  POST   /api/v1/transfers
+    Body: TransferCreate
+    Calls: execute_coil_transfer
+    Returns: TransferResponse (201)
+    On lock conflict → 409 with retry message
+
+  GET    /api/v1/transfers
+    Query params: from_party_id?, to_party_id?, status?,
+                  from_date?, to_date?, page, size
+    Returns: PaginatedResponse[TransferResponse]
+
+  GET    /api/v1/transfers/{transfer_id}
+    Returns: TransferResponse with line_items nested
+
+  GET    /api/v1/transfers/history
+    Queries vw_transfer_history view
+    Query params: party_id?, coil_number?, from_date?, to_date?, page, size
+    Returns full audit trail
+
+  POST   /api/v1/transfers/{transfer_id}/reverse
+    Calls: reverse_transfer
+    Requires: admin role
+    Returns: new reversed TransferResponse
+
+VERIFY:
+  POST /api/v1/transfers with 3 valid coil_ids → 201
+  GET /api/v1/coils/{coil_id}/state → current_party should now be new party
+  GET /api/v1/transfers/history → all 3 coils should appear in history
+  POST same coil_ids again to another party → should work (new owner)
+  Simulate concurrent: POST same coil_ids twice simultaneously → one should
+  get 409 lock conflict
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 10 — TRANSACTIONS ROUTER
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Implement the transactions router in app/routers/transactions.py.
+
+The transactions table is an IMMUTABLE LEDGER.
+There are NO POST/PUT/DELETE endpoints for transactions.
+Transactions are only created internally by coil_service, packet_service,
+and transfer_service. The router is READ ONLY.
+
+Endpoints:
+
+  GET /api/v1/transactions
+    Query params:
+      party_id?       filter by party
+      coil_id?        filter by coil
+      packet_id?      filter by packet
+      activity?       filter by activity type
+      product_type?   filter by product
+      from_date?      txn_date >= from_date
+      to_date?        txn_date <= to_date
+      page, size
+    Returns: PaginatedResponse[TransactionResponse]
+    Order: txn_date DESC, id DESC
+
+  GET /api/v1/transactions/coil/{coil_id}/balance
+    Queries vw_coil_running_balance for this coil
+    Returns: list[RunningBalanceResponse]
+    This shows the complete history with running balance at each step
+    Order: txn_date ASC, txn_id ASC
+
+  GET /api/v1/transactions/summary
+    Query params: party_id?, from_date?, to_date?
+    Returns aggregated:
+      total_inflow_kg, total_outflow_kg, net_weight_kg,
+      total_amount_charged, transaction_count
+    Grouped by activity type
+
+VERIFY:
+  GET /api/v1/transactions?party_id=1 → returns transaction history
+  GET /api/v1/transactions/coil/1/balance → running balance visible
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 11 — DASHBOARD ROUTER
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Implement the analytics dashboard router in app/routers/dashboard.py.
+All queries hit the derived views, not raw tables.
+
+Endpoints:
+
+  GET /api/v1/dashboard/summary
+    Returns top-level KPIs:
+      total_parties_active:     COUNT from parties where is_active
+      total_coils_in_stock:     COUNT from vw_coil_current_state where status=in_stock
+      total_coil_weight_kg:     SUM from vw_coil_current_state where status=in_stock
+      total_packets_in_stock:   COUNT from vw_packet_stock where status=in_stock
+      total_packet_weight_kg:   SUM from vw_packet_stock where status=in_stock
+      total_transfers_today:    COUNT from transfer_orders where date=today
+      total_billed_this_month:  SUM amount_charged from transactions this month
+
+  GET /api/v1/dashboard/parties
+    Queries vw_party_stock_summary
+    Returns: list[PartyStockSummary] ordered by total_coil_weight_kg DESC
+    This is the main dashboard table showing each party's stock and billing
+
+  GET /api/v1/dashboard/aging
+    Returns coils grouped by holding days bucket:
+      "0-30 days", "31-60 days", "61-90 days", "90+ days"
+    For each bucket: coil_count, total_weight_kg, party breakdown
+    Source: vw_coil_current_state
+
+  GET /api/v1/dashboard/activity
+    Query params: from_date (default 30 days ago), to_date (default today)
+    Returns daily activity counts grouped by activity type
+    Format: [{ date, Coil-In, Dispatch, Transfer, JW-C, JW-R, JW-S }]
+    Used for the line/bar chart on dashboard
+
+  GET /api/v1/dashboard/party/{party_id}
+    Returns detailed view for one party:
+      party_info:      from parties table
+      coils_in_stock:  from vw_coil_current_state filtered by party
+      packets_in_stock: from vw_packet_stock filtered by party
+      recent_transfers: last 10 transfers involving this party
+      billing_this_month: SUM amount_charged this month for this party
+      holding_distribution: count of coils per holding-days bucket
+
+VERIFY:
+  GET /api/v1/dashboard/summary → all KPI fields present
+  GET /api/v1/dashboard/parties → all 18 seeded parties returned with stock info
+  GET /api/v1/dashboard/aging → returns 4 age buckets
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 12 — ALEMBIC MIGRATIONS
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Set up Alembic database migrations for the RIC Steel project.
+
+1. Initialize Alembic if not already done:
+   alembic init alembic
+
+2. Configure alembic/env.py:
+   - Import Base from app.models
+   - Import settings from app.config
+   - Set target_metadata = Base.metadata
+   - Use settings.DATABASE_URL for sqlalchemy.url
+   - Support both --autogenerate and manual migrations
+
+3. Generate the initial migration:
+   alembic revision --autogenerate -m "initial_schema"
+
+4. Open the generated migration file and ADD after the table creation:
+   - All 5 SQL views (copy from init_db.py VIEWS list)
+   - Use op.execute() for each CREATE OR REPLACE VIEW statement
+   - In downgrade(): DROP all views before dropping tables
+
+5. Apply the migration:
+   alembic upgrade head
+
+6. Verify:
+   alembic current   → should show head
+   alembic history   → should show 1 migration
+
+IMPORTANT: Every future schema change must be a new alembic revision.
+           Never edit the initial migration after it has been applied.
+
+VERIFY:
+   alembic current shows "head"
+   SELECT COUNT(*) FROM information_schema.views WHERE table_schema='public'
+   should return 5.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 13 — SEED THE DATABASE
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Run the database seeder to populate the database with realistic test data.
+
+1. Ensure the .env file has correct DB credentials.
+
+2. Run:
+   python init_db.py --seed-only
+
+   (Schema was already created by alembic in Step 12.
+    If you get errors, run: python init_db.py --reset instead.)
+
+3. Verify seed counts by querying:
+   - SELECT COUNT(*) FROM parties;         → expect 18
+   - SELECT COUNT(*) FROM coils;           → expect 60
+   - SELECT COUNT(*) FROM packets;         → expect 40
+   - SELECT COUNT(*) FROM transactions;    → expect 60 + 40 + (transfers*2) + dispatches
+   - SELECT COUNT(*) FROM transfer_orders; → expect ~10
+
+4. Test the views:
+   - SELECT * FROM vw_party_stock_summary LIMIT 5;
+   - SELECT * FROM vw_coil_current_state LIMIT 5;
+   - SELECT * FROM vw_coil_running_balance WHERE coil_id = 1;
+   - SELECT * FROM vw_packet_stock LIMIT 5;
+   - SELECT * FROM vw_transfer_history LIMIT 5;
+
+All 5 queries must return data without errors.
+
+VERIFY:
+   All table counts match expectations.
+   All 5 views return data.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 14 — TESTS
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Write pytest tests for the RIC Steel backend.
+
+tests/conftest.py:
+  - Create a test SQLite database (or test postgres DB)
+  - Create all tables via Base.metadata.create_all()
+  - Provide fixtures: client (TestClient), db_session, admin_token, operator_token
+  - Seed minimal test data: 2 parties, 2 users, 1 pricing config
+
+tests/test_parties.py:
+  test_create_party              → POST → 201 with correct fields
+  test_create_duplicate_party    → POST same name → 409
+  test_get_parties_paginated     → GET → has items, total, page fields
+  test_get_party_not_found       → GET /parties/99999 → 404
+  test_soft_delete_party         → DELETE → party.is_active = False
+
+tests/test_coils.py:
+  test_create_coil               → POST → 201, transaction created, balance +ve
+  test_create_duplicate_coil     → POST same coil_number → 409
+  test_get_coil_state            → GET /coils/{id}/state → has remaining_weight_kg
+  test_get_coil_ledger           → GET /coils/{id}/ledger → has running_balance_kg
+  test_update_processing_stage   → PUT /coils/{id}/stage → stage updated
+  test_add_processing_output     → POST /coils/{id}/output → output created
+
+tests/test_packets.py:
+  test_create_packet             → POST → 201, Pkt-In transaction created
+  test_get_packet_with_status    → GET → includes status and holding_days
+
+tests/test_transfers.py:
+  test_transfer_coils            → POST → 201, coil.current_party_id updated
+  test_transfer_wrong_owner      → coil not owned by from_party → 400
+  test_transfer_same_party       → from==to → 400 or 422
+  test_transfer_history          → GET /transfers/history → transferred coil visible
+  test_reverse_transfer          → POST /transfers/{id}/reverse → coil back to original
+
+Run tests:
+  cd ric_steel
+  pytest tests/ -v --tb=short
+
+VERIFY: All tests pass. Aim for 0 failures.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 15 — FINAL INTEGRATION CHECK
+════════════════════════════════════════════════════════════════════════════════
+
+PROMPT:
+───────
+Do a full end-to-end integration check of the RIC Steel backend.
+Start the server and run these in order using curl or httpx:
+
+1. Login:
+   POST /api/v1/auth/login → get token
+
+2. Create a new party "TEST STEEL CO":
+   POST /api/v1/parties
+
+3. Create a coil for that party:
+   POST /api/v1/coils  (coil_number=TEST001, weight=5000)
+
+4. Check coil state:
+   GET /api/v1/coils/{id}/state
+   → remaining_weight_kg should be 5000, holding_days >= 0, status=in_stock
+
+5. Add a processing output:
+   POST /api/v1/coils/{id}/output  (output_weight_kg=4000, scrap_weight_kg=500)
+
+6. Check coil state again:
+   GET /api/v1/coils/{id}/state
+   → remaining_weight_kg should now be 500
+
+7. Create another party "RECEIVER STEEL":
+   POST /api/v1/parties
+
+8. Transfer coil to new party:
+   POST /api/v1/transfers  (from=TEST STEEL CO, to=RECEIVER STEEL, coil_ids=[id])
+
+9. Check coil state again:
+   GET /api/v1/coils/{id}/state
+   → current_party should be "RECEIVER STEEL", status=transferred
+
+10. Check ledger:
+    GET /api/v1/transactions/coil/{id}/balance
+    → Should show 3 rows: Coil-In(+5000), JW-C(-4500), Coil-Transfer-Out(-500)
+    → running_balance_kg column should show: 5000 → 500 → 0
+
+11. Check dashboard:
+    GET /api/v1/dashboard/summary
+    GET /api/v1/dashboard/parties
+    → Both return data without error
+
+12. Check transfer history:
+    GET /api/v1/transfers/history
+    → TEST001 coil appears with from/to party names
+
+If all 12 checks pass, the backend is complete and correct.
+
+Report any failures with the exact error message.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+REFERENCE — COMPLETE API ENDPOINT LIST
+════════════════════════════════════════════════════════════════════════════════
+
+AUTH
+  POST   /api/v1/auth/login
+  GET    /api/v1/auth/me
+  POST   /api/v1/auth/register           (admin only)
+
+PARTIES
+  GET    /api/v1/parties
+  POST   /api/v1/parties
+  GET    /api/v1/parties/{id}
+  PUT    /api/v1/parties/{id}
+  DELETE /api/v1/parties/{id}            (soft delete, admin only)
+  GET    /api/v1/parties/{id}/coils
+  GET    /api/v1/parties/{id}/packets
+  GET    /api/v1/parties/{id}/transactions
+
+PRICING
+  GET    /api/v1/pricing
+  GET    /api/v1/pricing/active
+  POST   /api/v1/pricing                 (admin only)
+  PUT    /api/v1/pricing/{id}            (admin only)
+
+COILS
+  GET    /api/v1/coils
+  POST   /api/v1/coils
+  GET    /api/v1/coils/{id}
+  PUT    /api/v1/coils/{id}/stage
+  POST   /api/v1/coils/{id}/output
+  GET    /api/v1/coils/{id}/state        (from vw_coil_current_state)
+  GET    /api/v1/coils/{id}/ledger       (from vw_coil_running_balance)
+  DELETE /api/v1/coils/{id}             (admin only, no-txn guard)
+
+PACKETS
+  GET    /api/v1/packets
+  POST   /api/v1/packets
+  GET    /api/v1/packets/{id}
+  PUT    /api/v1/packets/{id}
+  DELETE /api/v1/packets/{id}           (admin only, no-txn guard)
+
+TRANSFERS
+  POST   /api/v1/transfers
+  GET    /api/v1/transfers
+  GET    /api/v1/transfers/{id}
+  GET    /api/v1/transfers/history      (from vw_transfer_history)
+  POST   /api/v1/transfers/{id}/reverse (admin only)
+
+TRANSACTIONS (READ ONLY)
+  GET    /api/v1/transactions
+  GET    /api/v1/transactions/coil/{coil_id}/balance
+  GET    /api/v1/transactions/summary
+
+DASHBOARD
+  GET    /api/v1/dashboard/summary
+  GET    /api/v1/dashboard/parties      (from vw_party_stock_summary)
+  GET    /api/v1/dashboard/aging
+  GET    /api/v1/dashboard/activity
+  GET    /api/v1/dashboard/party/{id}
+
+SYSTEM
+  GET    /health
+
+
+════════════════════════════════════════════════════════════════════════════════
+REFERENCE — KEY BUSINESS RULES (never violate these)
+════════════════════════════════════════════════════════════════════════════════
+
+1. LEDGER IS IMMUTABLE
+   Never UPDATE or DELETE a transaction row.
+   Corrections = new reversal rows with opposite sign.
+
+2. NET_WEIGHT_KG SIGN CONVENTION
+   +ve = inflow  (Coil-In, Pkt-In, Transfer-In)
+   -ve = outflow (Dispatch, Transfer-Out, Handling, Processing output)
+
+3. RATES FREEZE AT INSERT TIME
+   rate_applied and amount_charged on transactions must be set at insert time.
+   Never recalculate retroactively when pricing_config changes.
+
+4. COIL WEIGHT IS IMMUTABLE
+   coil.net_weight_kg is the original entry weight. Never mutate it.
+   remaining_weight = net_weight_kg - SUM(output_weight_kg + scrap_weight_kg)
+
+5. TRANSFERS USE SELECT FOR UPDATE NOWAIT
+   Never skip this. Without it, two operators can double-transfer.
+   NOWAIT = immediate error. Not FOR UPDATE (which silently queues).
+
+6. TRANSFER SNAPSHOTS ARE IMMUTABLE
+   transfer_line_items snapshot fields are written once and never changed.
+   They represent state AT THE MOMENT OF TRANSFER.
+
+7. STATUS IS NEVER STORED
+   Coil status, packet status, balance — always computed from ledger.
+   If you store status physically, it will eventually lie.
+
+8. ORIGINAL_PARTY_ID IS IMMUTABLE
+   Set once at creation. Never update it.
+   It always answers: "who originally brought this in?"
+
+9. PRICING UNIQUE CONSTRAINT
+   Never allow two active rates for the same product+activity+line combo.
+   When adding a new rate: auto-close the old one first.
+
+10. ATOMIC TRANSFERS
+    All 8 steps of execute_coil_transfer run in ONE transaction.
+    Either all succeed or nothing changes. No partial state.
+
+
+════════════════════════════════════════════════════════════════════════════════
+REFERENCE — DERIVED VIEWS (never add computed columns to tables instead)
+════════════════════════════════════════════════════════════════════════════════
+
+vw_coil_current_state
+  → remaining_weight_kg, holding_days, status per coil
+  → Replace: current_weight_kg, holding_days, status (all removed from coils table)
+
+vw_coil_running_balance
+  → running_balance_kg via SUM() OVER window function
+  → Replace: coil_balance_after (removed from transactions table)
+
+vw_packet_stock
+  → holding_days, storage_charge, status per packet
+  → Replace: current_balance, status (both removed from packets table)
+
+vw_party_stock_summary
+  → total_coils, total_weight, avg_holding_days, total_billed per party
+  → Used by dashboard /parties endpoint
+
+vw_transfer_history
+  → Full audit trail with party names, snapshots, who transferred
+  → Used by /transfers/history endpoint
+
+
+════════════════════════════════════════════════════════════════════════════════
+END OF FLOW
+════════════════════════════════════════════════════════════════════════════════
+
+Total steps: 15 (0 through 14 + final check)
+Total endpoints: 38
+Total tables: 8
+Total views: 5
+Total ENUMs: 9
+
+Estimated agent time per step: 3–8 minutes depending on complexity.
+Step 9 (Transfer Service) is the most complex — review its output carefully.

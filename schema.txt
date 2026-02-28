@@ -1,0 +1,438 @@
+"""
+models.py — SQLAlchemy ORM Models
+RIC Steel Inventory Management System
+Schema v2.0 — Ledger-First Architecture
+
+Install deps:
+    pip install sqlalchemy psycopg2-binary
+"""
+
+import enum
+from datetime import datetime, date
+from sqlalchemy import (
+    Column, Integer, String, Numeric, Boolean, Text,
+    Date, DateTime, ForeignKey, Enum as SAEnum,
+    CheckConstraint, UniqueConstraint, Index, event
+)
+from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.sql import func
+
+Base = declarative_base()
+
+
+# ─────────────────────────────────────────────
+# ENUM DEFINITIONS
+# ─────────────────────────────────────────────
+
+class UserRole(str, enum.Enum):
+    admin    = "admin"
+    operator = "operator"
+    viewer   = "viewer"
+
+
+class ProductType(str, enum.Enum):
+    coil          = "coil"
+    packet        = "packet"
+    slit_coil     = "slit_coil"
+    rewound_coil  = "rewound_coil"
+    sheet         = "sheet"
+
+
+class CoilType(str, enum.Enum):
+    CR         = "CR"
+    HR         = "HR"
+    GC         = "GC"
+    GP         = "GP"
+    BP         = "BP"
+    Chequered  = "Chequered"
+
+
+class ActivityType(str, enum.Enum):
+    coil_in             = "Coil-In"
+    pkt_in              = "Pkt-In"
+    coil_transfer_out   = "Coil-Transfer-Out"
+    coil_transfer_in    = "Coil-Transfer-In"
+    pkt_transfer_out    = "Pkt-Transfer-Out"
+    pkt_transfer_in     = "Pkt-Transfer-In"
+    dispatch            = "Dispatch"
+    handling            = "Handling"
+    internal_transfer   = "Internal-Transfer"
+    jw_c                = "JW-C"
+    jw_r                = "JW-R"
+    jw_s                = "JW-S"
+
+
+class ProcStage(str, enum.Enum):
+    received   = "received"
+    stage1     = "stage1"
+    stage2     = "stage2"
+    stage3     = "stage3"
+    completed  = "completed"
+
+
+class RateUnit(str, enum.Enum):
+    per_kg    = "per_kg"
+    per_ton   = "per_ton"
+    per_coil  = "per_coil"
+    per_day   = "per_day"
+
+
+class PricingActivity(str, enum.Enum):
+    storage    = "storage"
+    processing = "processing"
+    handling   = "handling"
+
+
+class TransferType(str, enum.Enum):
+    coil_transfer    = "coil_transfer"
+    packet_transfer  = "packet_transfer"
+    internal_transfer = "internal_transfer"
+
+
+class TransferStatus(str, enum.Enum):
+    pending    = "pending"
+    completed  = "completed"
+    cancelled  = "cancelled"
+    reversed   = "reversed"
+
+
+# ─────────────────────────────────────────────
+# TABLE: users
+# ─────────────────────────────────────────────
+
+class User(Base):
+    __tablename__ = "users"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    username       = Column(String(50), nullable=False, unique=True)
+    email          = Column(String(100), unique=True)
+    password_hash  = Column(Text, nullable=False)
+    role           = Column(SAEnum(UserRole, name="user_role"), nullable=False, default=UserRole.operator)
+    is_active      = Column(Boolean, nullable=False, default=True)
+    last_login_at  = Column(DateTime(timezone=True))
+    created_at     = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships (back-references)
+    created_coils        = relationship("Coil",   foreign_keys="Coil.created_by",   back_populates="creator")
+    created_packets      = relationship("Packet", foreign_keys="Packet.created_by", back_populates="creator")
+    created_transfers    = relationship("TransferOrder", back_populates="creator")
+    created_transactions = relationship("Transaction",   back_populates="creator")
+
+    def __repr__(self):
+        return f"<User {self.username} ({self.role})>"
+
+
+# ─────────────────────────────────────────────
+# TABLE: parties
+# ─────────────────────────────────────────────
+
+class Party(Base):
+    __tablename__ = "parties"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    name            = Column(String(200), nullable=False, unique=True)
+    gst_number      = Column(String(20))
+    address         = Column(Text)
+    mobile_number   = Column(String(15))
+    contact_person  = Column(String(100))
+    credit_limit    = Column(Numeric(12, 2))          # Added per senior review
+    billing_cycle   = Column(String(20))              # monthly / weekly
+    is_active       = Column(Boolean, nullable=False, default=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    owned_coils          = relationship("Coil",   foreign_keys="Coil.current_party_id",  back_populates="current_party")
+    original_coils       = relationship("Coil",   foreign_keys="Coil.original_party_id", back_populates="original_party")
+    owned_packets        = relationship("Packet", foreign_keys="Packet.party_id",         back_populates="party")
+    original_packets     = relationship("Packet", foreign_keys="Packet.original_party_id",back_populates="original_party")
+    outgoing_transfers   = relationship("TransferOrder", foreign_keys="TransferOrder.from_party_id", back_populates="from_party")
+    incoming_transfers   = relationship("TransferOrder", foreign_keys="TransferOrder.to_party_id",   back_populates="to_party")
+    transactions         = relationship("Transaction", back_populates="party")
+
+    def __repr__(self):
+        return f"<Party {self.name}>"
+
+
+# ─────────────────────────────────────────────
+# TABLE: pricing_config
+# ─────────────────────────────────────────────
+
+class PricingConfig(Base):
+    __tablename__ = "pricing_config"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    product_type     = Column(SAEnum(ProductType,     name="product_type"),     nullable=False)
+    activity_type    = Column(SAEnum(PricingActivity, name="pricing_activity"), nullable=False)
+    rate             = Column(Numeric(10, 2), nullable=False)
+    rate_unit        = Column(SAEnum(RateUnit,        name="rate_unit"),        nullable=False)
+    jw_line          = Column(String(10))                   # NULL = applies to all lines
+    effective_from   = Column(Date, nullable=False)
+    effective_to     = Column(Date)                         # NULL = currently active
+    created_by       = Column(Integer, ForeignKey("users.id"))
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+    creator = relationship("User", foreign_keys=[created_by])
+
+    __table_args__ = (
+        # CRITICAL: prevents overlapping rates destroying billing
+        UniqueConstraint(
+            "product_type", "activity_type", "jw_line", "effective_from",
+            name="uq_pricing_no_overlap"
+        ),
+        CheckConstraint("rate > 0", name="chk_rate_positive"),
+    )
+
+    def __repr__(self):
+        return f"<PricingConfig {self.product_type}/{self.activity_type} @ {self.rate} {self.rate_unit}>"
+
+
+# ─────────────────────────────────────────────
+# TABLE: packets
+# ─────────────────────────────────────────────
+
+class Packet(Base):
+    __tablename__ = "packets"
+
+    id                 = Column(Integer, primary_key=True, autoincrement=True)
+    packet_number      = Column(String(50), nullable=False, unique=True, index=True)
+    party_id           = Column(Integer, ForeignKey("parties.id"), nullable=False, index=True)
+    original_party_id  = Column(Integer, ForeignKey("parties.id"), nullable=False)
+    size               = Column(String(100), nullable=False)      # e.g. 40*18*4
+    thickness_mm       = Column(Numeric(6, 2))
+    width_mm           = Column(Numeric(8, 2))
+    length_mm          = Column(Numeric(8, 2))
+    coil_type          = Column(SAEnum(CoilType, name="coil_type"), nullable=False)
+    net_weight_kg      = Column(Numeric(10, 3), nullable=False)   # IMMUTABLE after entry
+    kata_weight_kg     = Column(Numeric(10, 3))
+    truck_do_number    = Column(String(100))
+    kanta_name         = Column(String(100))
+    kata_number        = Column(String(50))
+    rate_per_kg        = Column(Numeric(8, 2))                    # Frozen from pricing_config at entry
+    stock_in_date      = Column(Date, nullable=False, index=True)
+    unit               = Column(String(10), default="RIC")
+    remark             = Column(Text)
+    created_by         = Column(Integer, ForeignKey("users.id"))
+    created_at         = Column(DateTime(timezone=True), server_default=func.now())
+
+    # NOTE: No status, no current_balance — derived from transactions via views
+
+    # Relationships
+    party           = relationship("Party",  foreign_keys=[party_id],          back_populates="owned_packets")
+    original_party  = relationship("Party",  foreign_keys=[original_party_id], back_populates="original_packets")
+    creator         = relationship("User",   foreign_keys=[created_by],        back_populates="created_packets")
+    transactions    = relationship("Transaction", back_populates="packet")
+    transfer_items  = relationship("TransferLineItem", back_populates="packet")
+
+    __table_args__ = (
+        CheckConstraint("net_weight_kg > 0", name="chk_packet_weight_positive"),
+    )
+
+    def __repr__(self):
+        return f"<Packet {self.packet_number} — {self.size}>"
+
+
+# ─────────────────────────────────────────────
+# TABLE: coils
+# ─────────────────────────────────────────────
+
+class Coil(Base):
+    __tablename__ = "coils"
+
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
+    coil_number         = Column(String(50), nullable=False, unique=True, index=True)
+    current_party_id    = Column(Integer, ForeignKey("parties.id"), nullable=False, index=True)
+    original_party_id   = Column(Integer, ForeignKey("parties.id"), nullable=False)
+    product_type        = Column(SAEnum(ProductType, name="product_type"),  nullable=False)
+    size                = Column(String(100), nullable=False)
+    thickness_mm        = Column(Numeric(6, 3), index=True)
+    width_mm            = Column(Numeric(8, 2))
+    length_mm           = Column(Numeric(8, 2))
+    coil_type           = Column(SAEnum(CoilType, name="coil_type"), nullable=False)
+    net_weight_kg       = Column(Numeric(10, 3), nullable=False)  # ORIGINAL — never mutated
+    kata_weight_kg      = Column(Numeric(10, 3))
+    truck_do_number     = Column(String(100))
+    kanta_name          = Column(String(100))
+    kata_number         = Column(String(50))
+    chalan_number       = Column(String(50))
+    jw_line             = Column(String(10))                       # L1–L5
+    processing_stage    = Column(                                  # ENUM not VARCHAR
+        SAEnum(ProcStage, name="proc_stage"),
+        nullable=False,
+        default=ProcStage.received
+    )
+    rate_per_kg         = Column(Numeric(8, 2))                   # Frozen from pricing_config at entry
+    stock_in_date       = Column(Date, nullable=False, index=True)
+    remark              = Column(Text)
+    created_by          = Column(Integer, ForeignKey("users.id"))
+    created_at          = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at          = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # NOTE: No holding_days, current_weight_kg, coil_balance, status — all derived via views
+
+    # Relationships
+    current_party   = relationship("Party",  foreign_keys=[current_party_id],  back_populates="owned_coils")
+    original_party  = relationship("Party",  foreign_keys=[original_party_id], back_populates="original_coils")
+    creator         = relationship("User",   foreign_keys=[created_by],        back_populates="created_coils")
+    processing_outputs = relationship("CoilProcessingOutput", back_populates="coil", cascade="all, delete-orphan")
+    transactions       = relationship("Transaction",          back_populates="coil")
+    transfer_items     = relationship("TransferLineItem",     back_populates="coil")
+
+    __table_args__ = (
+        CheckConstraint("net_weight_kg > 0", name="chk_coil_weight_positive"),
+    )
+
+    def __repr__(self):
+        return f"<Coil {self.coil_number} — {self.size}>"
+
+
+# ─────────────────────────────────────────────
+# TABLE: coil_processing_outputs
+# ─────────────────────────────────────────────
+
+class CoilProcessingOutput(Base):
+    __tablename__ = "coil_processing_outputs"
+
+    id                       = Column(Integer, primary_key=True, autoincrement=True)
+    coil_id                  = Column(Integer, ForeignKey("coils.id"), nullable=False, index=True)
+    stage                    = Column(SAEnum(ProcStage, name="proc_stage"), nullable=False)
+    output_type              = Column(String(30), nullable=False)   # JW-C / JW-R / JW-S
+    output_quantity          = Column(Numeric(10, 3))
+    output_weight_kg         = Column(Numeric(10, 3))              # Used in remaining weight calc
+    scrap_weight_kg          = Column(Numeric(10, 3))
+    plates_count             = Column(Integer)
+    tukda_count              = Column(Integer)
+    snapshot_processing_stage = Column(                            # Added per senior review
+        SAEnum(ProcStage, name="proc_stage"),
+        nullable=True
+    )
+    processed_date           = Column(Date, nullable=False)
+    jw_line                  = Column(String(10))
+    created_by               = Column(Integer, ForeignKey("users.id"))
+    created_at               = Column(DateTime(timezone=True), server_default=func.now())  # IMMUTABLE
+
+    coil    = relationship("Coil", back_populates="processing_outputs")
+    creator = relationship("User", foreign_keys=[created_by])
+
+    def __repr__(self):
+        return f"<ProcessingOutput coil_id={self.coil_id} stage={self.stage}>"
+
+
+# ─────────────────────────────────────────────
+# TABLE: transfer_orders
+# ─────────────────────────────────────────────
+
+class TransferOrder(Base):
+    __tablename__ = "transfer_orders"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    transfer_number  = Column(String(30), unique=True)             # Auto-generated: TRF-2025-001
+    from_party_id    = Column(Integer, ForeignKey("parties.id"), nullable=False, index=True)
+    to_party_id      = Column(Integer, ForeignKey("parties.id"), nullable=False, index=True)
+    transfer_type    = Column(SAEnum(TransferType,   name="transfer_type"),   nullable=False)
+    status           = Column(SAEnum(TransferStatus, name="transfer_status"), nullable=False, default=TransferStatus.pending)
+    transfer_date    = Column(Date, nullable=False)
+    is_reversible    = Column(Boolean, nullable=False, default=False)  # Added per senior review
+    remark           = Column(Text)
+    created_by       = Column(Integer, ForeignKey("users.id"))
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+    # NOTE: No total_coils, total_weight — compute from line_items with COUNT/SUM
+
+    from_party  = relationship("Party", foreign_keys=[from_party_id], back_populates="outgoing_transfers")
+    to_party    = relationship("Party", foreign_keys=[to_party_id],   back_populates="incoming_transfers")
+    creator     = relationship("User",  foreign_keys=[created_by],    back_populates="created_transfers")
+    line_items  = relationship("TransferLineItem", back_populates="transfer_order", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="transfer_order")
+
+    __table_args__ = (
+        CheckConstraint("from_party_id != to_party_id", name="chk_transfer_different_parties"),
+    )
+
+    def __repr__(self):
+        return f"<TransferOrder {self.transfer_number}>"
+
+
+# ─────────────────────────────────────────────
+# TABLE: transfer_line_items
+# ─────────────────────────────────────────────
+
+class TransferLineItem(Base):
+    __tablename__ = "transfer_line_items"
+
+    id                       = Column(Integer, primary_key=True, autoincrement=True)
+    transfer_order_id        = Column(Integer, ForeignKey("transfer_orders.id"), nullable=False, index=True)
+    coil_id                  = Column(Integer, ForeignKey("coils.id"),           index=True)    # NULL for packets
+    packet_id                = Column(Integer, ForeignKey("packets.id"),         index=True)    # NULL for coils
+    coil_number_snapshot     = Column(String(50), nullable=False)   # Frozen at transfer time
+    weight_kg_snapshot       = Column(Numeric(10, 3))               # Frozen at transfer time
+    size_snapshot            = Column(String(100))                  # Frozen at transfer time
+    snapshot_processing_stage = Column(                             # Added per senior review
+        SAEnum(ProcStage, name="proc_stage"),
+        nullable=True
+    )
+    prev_party_id  = Column(Integer, ForeignKey("parties.id"), nullable=False)
+    new_party_id   = Column(Integer, ForeignKey("parties.id"), nullable=False)
+    created_at     = Column(DateTime(timezone=True), server_default=func.now())  # IMMUTABLE
+
+    transfer_order = relationship("TransferOrder", back_populates="line_items")
+    coil           = relationship("Coil",   back_populates="transfer_items")
+    packet         = relationship("Packet", back_populates="transfer_items")
+    prev_party     = relationship("Party",  foreign_keys=[prev_party_id])
+    new_party      = relationship("Party",  foreign_keys=[new_party_id])
+
+    def __repr__(self):
+        return f"<TransferLineItem {self.coil_number_snapshot}>"
+
+
+# ─────────────────────────────────────────────
+# TABLE: transactions  (IMMUTABLE LEDGER)
+# ─────────────────────────────────────────────
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id                 = Column(Integer, primary_key=True, autoincrement=True)
+    txn_date           = Column(Date, nullable=False, index=True)
+    activity           = Column(SAEnum(ActivityType, name="activity_type"), nullable=False, index=True)
+    party_id           = Column(Integer, ForeignKey("parties.id"), nullable=False, index=True)
+    coil_id            = Column(Integer, ForeignKey("coils.id"),           index=True)    # NULL for packets
+    packet_id          = Column(Integer, ForeignKey("packets.id"),         index=True)    # NULL for coils
+    transfer_order_id  = Column(Integer, ForeignKey("transfer_orders.id"))
+    product_type       = Column(SAEnum(ProductType, name="product_type"),  index=True)
+    net_weight_kg      = Column(Numeric(10, 3))                            # +ve = inflow, -ve = outflow
+    output_qty         = Column(Numeric(10, 3))
+    rate_applied       = Column(Numeric(8, 2))                             # FROZEN at txn time
+    amount_charged     = Column(Numeric(12, 2))                            # FROZEN at txn time
+    # NOTE: No coil_balance_after — use window SUM() OVER() in vw_coil_running_balance
+    chalan_number      = Column(String(50))
+    truck_do_number    = Column(String(100))
+    jw_line            = Column(String(10))
+    remark             = Column(Text)
+    created_by         = Column(Integer, ForeignKey("users.id"))
+    created_at         = Column(DateTime(timezone=True), server_default=func.now())   # IMMUTABLE
+
+    # RULE: No UPDATE, no DELETE. Corrections = new reversal rows.
+
+    party          = relationship("Party",         back_populates="transactions")
+    coil           = relationship("Coil",          back_populates="transactions")
+    packet         = relationship("Packet",        back_populates="transactions")
+    transfer_order = relationship("TransferOrder", back_populates="transactions")
+    creator        = relationship("User",          foreign_keys=[created_by], back_populates="created_transactions")
+
+    __table_args__ = (
+        CheckConstraint("net_weight_kg != 0", name="chk_txn_nonzero_weight"),
+    )
+
+    def __repr__(self):
+        return f"<Transaction {self.activity} on {self.txn_date} — {self.net_weight_kg}kg>"
+
+
+# ─────────────────────────────────────────────
+# COMPOSITE INDEXES (defined separately for clarity)
+# ─────────────────────────────────────────────
+
+Index("idx_txn_coil_date",    Transaction.coil_id,   Transaction.txn_date)
+Index("idx_txn_party_date",   Transaction.party_id,  Transaction.txn_date)
+Index("idx_transfer_from_dt", TransferOrder.from_party_id, TransferOrder.transfer_date)
+Index("idx_transfer_to_dt",   TransferOrder.to_party_id,   TransferOrder.transfer_date)
