@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const fmt2 = (n: number) => Number(n || 0).toLocaleString('en-IN', {
   minimumFractionDigits: 2,
@@ -315,23 +316,12 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
 };
 
 export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
-  // ── 1. Build the hidden HTML node ──────────────────────────────────────────
-  // We render at 2× a fixed pixel width so html2canvas produces a sharp image.
-  // The pixel width must correspond *exactly* to the A4 printable area so nothing
-  // gets cropped horizontally.
-  //
-  // A4 = 210 × 297 mm  |  margin = 8 mm each side  →  printable = 194 mm wide
-  // At 96 dpi: 1 mm = 3.7795 px  →  194 mm × 3.7795 ≈ 733 px  (render at 1×)
-  // We use a SCALE factor of 2 for retina sharpness, so html2canvas width = 733 px
-  // but we tell it scale=2, producing a 1466-px canvas → jsPDF gets a crisp image.
-
-  const MARGIN_MM       = 8;
-  const A4_W_MM         = 210;
-  const A4_H_MM         = 297;
-  const PRINTABLE_W_MM  = A4_W_MM - MARGIN_MM * 2;   // 194 mm
-  const MM_TO_PX        = 3.7795275591;
-  const RENDER_W_PX     = Math.round(PRINTABLE_W_MM * MM_TO_PX); // 733 px  (1× logical)
-  const CANVAS_SCALE    = 2;                          // hi-dpi multiplier
+  const MARGIN_MM = 8;
+  const A4_W_MM = 210;
+  const A4_H_MM = 297;
+  const PRINTABLE_W_MM = A4_W_MM - MARGIN_MM * 2;   // 194 mm
+  const MM_TO_PX = 3.7795275591;
+  const RENDER_W_PX = Math.round(PRINTABLE_W_MM * MM_TO_PX); // ~733 px
 
   const host = document.createElement('div');
   host.style.cssText = `
@@ -347,11 +337,8 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
     <style>
       *, *::before, *::after { box-sizing: border-box; }
       body, html { margin: 0; padding: 0; }
-      #invoice-root table,
-      #invoice-root th,
-      #invoice-root td { border-collapse: collapse; }
-      #invoice-root .th,
-      #invoice-root .td {
+      #invoice-root table, #invoice-root th, #invoice-root td { border-collapse: collapse; }
+      #invoice-root .th, #invoice-root .td {
         border: 1px solid #000;
         padding: 1px 2px;
         text-align: left;
@@ -386,18 +373,13 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
     throw new Error('Unable to render invoice root element');
   }
 
-  // Force the root to exactly RENDER_W_PX so nothing overflows
-  root.style.width  = `${RENDER_W_PX}px`;
+  root.style.width = `${RENDER_W_PX}px`;
   root.style.maxWidth = `${RENDER_W_PX}px`;
 
   try {
-    // ── 2. Capture with html2canvas ──────────────────────────────────────────
-    // `scale` inflates the canvas resolution without changing layout width.
-    // `width` / `height` are the *logical* (CSS) dimensions of the capture area.
-    const canvas = await (window as Window & {
-      html2canvas?: (el: HTMLElement, opts: Record<string, unknown>) => Promise<HTMLCanvasElement>
-    }).html2canvas!(root, {
-      scale: CANVAS_SCALE,
+    // Capture the invoice HTML as an image
+    const canvas = await html2canvas(root, {
+      scale: 2,
       width: RENDER_W_PX,
       backgroundColor: '#ffffff',
       logging: false,
@@ -405,28 +387,22 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
       allowTaint: true,
     });
 
-    // ── 3. Build multi-page PDF ──────────────────────────────────────────────
-    const imgData = canvas.toDataURL('image/jpeg', 0.97);
-
-    // Canvas pixel dimensions
-    const canvasW = canvas.width;   // RENDER_W_PX * CANVAS_SCALE
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const canvasW = canvas.width;
     const canvasH = canvas.height;
 
     // How many mm does 1 canvas-px represent?
     const pxToMm = PRINTABLE_W_MM / canvasW;
-
-    // Total rendered height in mm
     const totalHeightMm = canvasH * pxToMm;
-
-    // Printable height per page
-    const printableHMm = A4_H_MM - MARGIN_MM * 2;   // 281 mm
+    const printableHMm = A4_H_MM - MARGIN_MM * 2;
 
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
 
-    let remainingMm  = totalHeightMm;
-    let srcYPx       = 0;           // top of the slice in canvas pixels
-    let isFirstPage  = true;
+    let remainingMm = totalHeightMm;
+    let srcYPx = 0;
+    let isFirstPage = true;
 
+    // Multi-page support: slice the canvas into A4-sized pieces
     while (remainingMm > 0) {
       if (!isFirstPage) doc.addPage();
 
@@ -435,17 +411,17 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
 
       // Slice the canvas for this page
       const sliceCanvas = document.createElement('canvas');
-      sliceCanvas.width  = canvasW;
+      sliceCanvas.width = canvasW;
       sliceCanvas.height = sliceHeightPx;
       const ctx = sliceCanvas.getContext('2d')!;
       ctx.drawImage(canvas, 0, srcYPx, canvasW, sliceHeightPx, 0, 0, canvasW, sliceHeightPx);
 
-      const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.97);
+      const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95);
       doc.addImage(sliceData, 'JPEG', MARGIN_MM, MARGIN_MM, PRINTABLE_W_MM, sliceHeightMm);
 
-      srcYPx      += sliceHeightPx;
+      srcYPx += sliceHeightPx;
       remainingMm -= sliceHeightMm;
-      isFirstPage  = false;
+      isFirstPage = false;
     }
 
     doc.save(`${detail.invoiceNumber}.pdf`);
