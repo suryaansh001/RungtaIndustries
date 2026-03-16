@@ -185,60 +185,57 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
   `).join('');
 
   return `
-  <div id="invoice-root" style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #fff; border: 1px solid #000; width: 100%; box-sizing: border-box; margin: 0; padding: 0;">
-    <div style="text-align:center;font-weight:bold;font-size:15px;padding:6px 8px;border-bottom:1px solid #000;letter-spacing:1px;">Tax Invoice</div>
+  <div id="invoice-root" style="font-family: Arial, Helvetica, sans-serif; font-size: 7px; color: #000; background: #fff; border: 1px solid #000; width: 100%; box-sizing: border-box; margin: 0; padding: 0; line-height: 1.1;">
+    <div style="text-align:center;font-weight:bold;font-size:9px;padding:2px 3px;border-bottom:1px solid #000;letter-spacing:0.5px;">Tax Invoice</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;">
-      <div style="padding:8px;border-right:1px solid #000;">
-        <p style="font-weight:bold;font-size:13px;margin:0 0 3px 0;">${esc(detail.seller?.companyName)}</p>
-        <p style="margin:0;line-height:1.5;">${esc(detail.seller?.fullAddress)}</p>
-        <p style="margin:4px 0 0 0;">GSTIN/UIN: <strong>${esc(detail.seller?.gstinUin)}</strong></p>
-        <p style="margin:0;">State Name: ${esc(detail.seller?.stateName)}, <strong>Code: ${esc(detail.seller?.stateCode)}</strong></p>
-        ${detail.seller?.email ? `<p style="margin:0;">E-Mail: ${esc(detail.seller.email)}</p>` : ''}
-        ${detail.companyPan ? `<p style="margin:0;">PAN No.: ${esc(detail.companyPan)}</p>` : ''}
+      <div style="padding:2px;border-right:1px solid #000;">
+        <p style="font-weight:bold;font-size:8px;margin:0 0 1px 0;">${esc(detail.seller?.companyName)}</p>
+        <p style="margin:0;line-height:1.1;font-size:7px;">${esc(detail.seller?.fullAddress)}</p>
+        <p style="margin:1px 0 0 0;font-size:7px;">GSTIN: <strong>${esc(detail.seller?.gstinUin)}</strong></p>
+        <p style="margin:0;font-size:7px;">State: ${esc(detail.seller?.stateName)}</p>
+        ${detail.seller?.email ? `<p style="margin:0;font-size:7px;">${esc(detail.seller.email)}</p>` : ''}
       </div>
-      <div style="padding:8px;">
-        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <div style="padding:2px;">
+        <table style="width:100%;border-collapse:collapse;font-size:7px;">
           <tbody>
-            <tr><td class="cell-head">Invoice No.</td><td class="cell-value" style="font-weight:600;">${esc(detail.invoiceNumber)}</td></tr>
-            <tr><td class="cell-head">Dated</td><td class="cell-value">${esc(detail.invoiceDate)}</td></tr>
-            <tr><td class="cell-head">Delivery Note</td><td class="cell-value">${esc(detail.deliveryNote)}</td></tr>
-            <tr><td class="cell-head">Mode/Terms of Payment</td><td class="cell-value">${esc(detail.paymentTerms)}</td></tr>
-            <tr><td class="cell-head">Reference No. &amp; Date</td><td class="cell-value">${esc(detail.referenceNoDate)}</td></tr>
-            <tr><td class="cell-head">Dispatched through</td><td class="cell-value">${esc(detail.destination)}</td></tr>
+            <tr><td class="cell-head">Invoice No.</td><td class="cell-value" style="font-weight:600;font-size:7px;">${esc(detail.invoiceNumber)}</td></tr>
+            <tr><td class="cell-head">Dated</td><td class="cell-value" style="font-size:7px;">${esc(detail.invoiceDate)}</td></tr>
+            <tr><td class="cell-head">Delivery Note</td><td class="cell-value" style="font-size:7px;">${esc(detail.deliveryNote)}</td></tr>
+            <tr><td class="cell-head">Payment Terms</td><td class="cell-value" style="font-size:7px;">${esc(detail.paymentTerms)}</td></tr>
+            <tr><td class="cell-head">Reference</td><td class="cell-value" style="font-size:7px;">${esc(detail.referenceNoDate)}</td></tr>
+            <tr><td class="cell-head">Dispatch</td><td class="cell-value" style="font-size:7px;">${esc(detail.destination)}</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;">
-      <div style="padding:8px;border-right:1px solid #000;">
-        <p style="font-weight:600;margin:0 0 3px 0;text-decoration:underline;">Consignee (Ship to)</p>
-        <p style="font-weight:bold;margin:0;">${esc(detail.consignee?.companyName || '-')}</p>
-        <p style="margin:0;line-height:1.5;">${esc(detail.consignee?.address)}</p>
-        ${detail.consignee?.gstinUin ? `<p style="margin:0;">GSTIN/UIN: ${esc(detail.consignee.gstinUin)}</p>` : ''}
-        ${detail.consignee?.stateName ? `<p style="margin:0;">State Name: ${esc(detail.consignee.stateName)}${detail.consignee.stateCode ? `, Code: ${esc(detail.consignee.stateCode)}` : ''}</p>` : ''}
+      <div style="padding:2px;border-right:1px solid #000;">
+        <p style="font-weight:600;margin:0 0 1px 0;text-decoration:underline;font-size:7px;">Consignee (Ship to)</p>
+        <p style="font-weight:bold;margin:0;font-size:7px;">${esc(detail.consignee?.companyName || '-')}</p>
+        <p style="margin:0;line-height:1.1;font-size:7px;">${esc(detail.consignee?.address)}</p>
+        ${detail.consignee?.gstinUin ? `<p style="margin:0;font-size:7px;">GSTIN: ${esc(detail.consignee.gstinUin)}</p>` : ''}
       </div>
-      <div style="padding:8px;">
-        <p style="font-weight:600;margin:0 0 3px 0;text-decoration:underline;">Buyer (Bill to)</p>
-        <p style="font-weight:bold;margin:0;">${esc(detail.buyer?.companyName || '-')}</p>
-        <p style="margin:0;line-height:1.5;">${esc(detail.buyer?.address)}</p>
-        ${detail.buyer?.gstinUin ? `<p style="margin:0;">GSTIN/UIN: ${esc(detail.buyer.gstinUin)}</p>` : ''}
-        ${detail.buyer?.stateName ? `<p style="margin:0;">State Name: ${esc(detail.buyer.stateName)}${detail.buyer.stateCode ? `, Code: ${esc(detail.buyer.stateCode)}` : ''}</p>` : ''}
+      <div style="padding:2px;">
+        <p style="font-weight:600;margin:0 0 1px 0;text-decoration:underline;font-size:7px;">Buyer (Bill to)</p>
+        <p style="font-weight:bold;margin:0;font-size:7px;">${esc(detail.buyer?.companyName || '-')}</p>
+        <p style="margin:0;line-height:1.1;font-size:7px;">${esc(detail.buyer?.address)}</p>
+        ${detail.buyer?.gstinUin ? `<p style="margin:0;font-size:7px;">GSTIN: ${esc(detail.buyer.gstinUin)}</p>` : ''}
       </div>
     </div>
 
     <table style="width:100%;border-collapse:collapse;border-bottom:1px solid #000;">
       <thead>
         <tr style="background:#f0f0f0;">
-          <th class="th c-center" style="width:32px;">Sl No.</th>
-          <th class="th">Description of Services</th>
-          <th class="th c-center" style="width:64px;">HSN/SAC</th>
-          <th class="th c-right" style="width:58px;">GST Rate</th>
-          <th class="th c-right" style="width:72px;">Quantity</th>
-          <th class="th c-right" style="width:80px;">Rate</th>
-          <th class="th c-center" style="width:42px;">Per</th>
-          <th class="th c-right" style="width:90px;">Amount</th>
+          <th class="th c-center" style="width:20px;">Sl</th>
+          <th class="th">Desc</th>
+          <th class="th c-center" style="width:45px;">HSN</th>
+          <th class="th c-right" style="width:35px;">Rate%</th>
+          <th class="th c-right" style="width:45px;">Qty</th>
+          <th class="th c-right" style="width:50px;">Rate</th>
+          <th class="th c-center" style="width:28px;">Unit</th>
+          <th class="th c-right" style="width:65px;">Amt</th>
         </tr>
       </thead>
       <tbody>
@@ -247,86 +244,79 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
         ${roundOffRow}
         <tr>
           <td class="td"></td>
-          <td class="td" style="font-weight:700;">Total</td>
+          <td class="td" style="font-weight:700;font-size:7px;">Total</td>
           <td class="td"></td>
           <td class="td"></td>
-          <td class="td c-right" style="font-weight:700;">${totals.totalQuantity.toLocaleString('en-IN', { maximumFractionDigits: 3 })}</td>
+          <td class="td c-right" style="font-weight:700;font-size:7px;">${totals.totalQuantity.toLocaleString('en-IN', { maximumFractionDigits: 3 })}</td>
           <td class="td"></td>
           <td class="td"></td>
-          <td class="td c-right" style="font-weight:700;">&#8377;${fmt2(totals.totalInvoiceAmount)}</td>
+          <td class="td c-right" style="font-weight:700;font-size:7px;">&#8377;${fmt2(totals.totalInvoiceAmount)}</td>
         </tr>
       </tbody>
     </table>
 
-    <div style="padding:6px 8px;border-bottom:1px solid #000;display:flex;justify-content:space-between;align-items:baseline;">
-      <span><strong>Amount Chargeable (in words):</strong> <em>${esc(totals.totalInvoiceAmountWords)}</em></span>
-      <span style="font-weight:600;white-space:nowrap;margin-left:8px;">E. &amp; O.E</span>
+    <div style="padding:2px 3px;border-bottom:1px solid #000;display:flex;justify-content:space-between;align-items:baseline;font-size:7px;">
+      <span><strong>Amount in words:</strong> <em>${esc(totals.totalInvoiceAmountWords)}</em></span>
+      <span style="font-weight:600;white-space:nowrap;">E. & O.E</span>
     </div>
 
-    <div style="padding:6px 8px;border-bottom:1px solid #000;">
-      <p style="font-weight:700;margin:0 0 4px 0;">Tax Analysis</p>
+    <div style="padding:2px 3px;border-bottom:1px solid #000;font-size:7px;">
+      <p style="font-weight:700;margin:0 0 2px 0;font-size:7px;">Tax Analysis</p>
       <table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr style="background:#f0f0f0;">
-            <th class="th">HSN/SAC</th>
-            <th class="th c-right">Taxable Value</th>
-            <th class="th c-right">Central Tax Rate</th>
-            <th class="th c-right">Central Tax Amt</th>
-            <th class="th c-right">State Tax Rate</th>
-            <th class="th c-right">State Tax Amt</th>
-            <th class="th c-right">Total Tax Amt</th>
+            <th class="th" style="font-size:7px;">HSN/SAC</th>
+            <th class="th c-right" style="font-size:7px;">Taxable</th>
+            <th class="th c-right" style="font-size:7px;">CGST%</th>
+            <th class="th c-right" style="font-size:7px;">CGST</th>
+            <th class="th c-right" style="font-size:7px;">SGST%</th>
+            <th class="th c-right" style="font-size:7px;">SGST</th>
+            <th class="th c-right" style="font-size:7px;">Total</th>
           </tr>
         </thead>
         <tbody>
           ${taxRows}
           <tr style="font-weight:700;">
-            <td class="td">Total</td>
-            <td class="td c-right">${fmt2(totals.totalTaxableValue)}</td>
+            <td class="td" style="font-size:7px;">Total</td>
+            <td class="td c-right" style="font-size:7px;">${fmt2(totals.totalTaxableValue)}</td>
             <td class="td"></td>
-            <td class="td c-right">${fmt2(totals.cgstAmount)}</td>
+            <td class="td c-right" style="font-size:7px;">${fmt2(totals.cgstAmount)}</td>
             <td class="td"></td>
-            <td class="td c-right">${fmt2(totals.sgstAmount)}</td>
-            <td class="td c-right">${fmt2(totals.cgstAmount + totals.sgstAmount + totals.igstAmount)}</td>
+            <td class="td c-right" style="font-size:7px;">${fmt2(totals.sgstAmount)}</td>
+            <td class="td c-right" style="font-size:7px;">${fmt2(totals.cgstAmount + totals.sgstAmount + totals.igstAmount)}</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <div style="padding:6px 8px;border-bottom:1px solid #000;">
-      <strong>Tax Amount (in words):</strong> <em>${esc(taxAmountWords)}</em>
+    <div style="padding:2px 3px;border-bottom:1px solid #000;font-size:7px;">
+      <strong>Tax in words:</strong> <em>${esc(taxAmountWords)}</em>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;">
-      <div style="padding:8px;border-right:1px solid #000;">
-        <p style="font-weight:700;margin:0 0 5px 0;">Company's Bank Details</p>
-        <p style="margin:0;">A/c Holder Name: <strong>${esc(detail.bankDetails?.accountHolderName)}</strong></p>
-        <p style="margin:0;">Bank Name: ${esc(detail.bankDetails?.bankName)}</p>
-        <p style="margin:0;">A/c No.: <strong>${esc(detail.bankDetails?.accountNumber)}</strong></p>
-        <p style="margin:0;">Branch &amp; IFSC Code: ${esc(detail.bankDetails?.branchIfscCode)}</p>
-        ${detail.bankDetails?.swiftCode ? `<p style="margin:0;">SWIFT: ${esc(detail.bankDetails.swiftCode)}</p>` : ''}
-        ${detail.remarks ? `<p style="margin:6px 0 0 0;"><strong>Remarks:</strong> ${esc(detail.remarks)}</p>` : ''}
-        ${detail.declarationText ? `<p style="margin:8px 0 0 0;font-size:10px;color:#444;line-height:1.4;">${esc(detail.declarationText)}</p>` : ''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;font-size:7px;">
+      <div style="padding:2px;border-right:1px solid #000;">
+        <p style="font-weight:700;margin:0 0 2px 0;font-size:7px;">Bank Details</p>
+        <p style="margin:0;font-size:7px;">A/c: <strong>${esc(detail.bankDetails?.accountHolderName)}</strong></p>
+        <p style="margin:0;font-size:7px;">Bank: ${esc(detail.bankDetails?.bankName)}</p>
+        <p style="margin:0;font-size:7px;">No.: <strong>${esc(detail.bankDetails?.accountNumber)}</strong></p>
+        <p style="margin:0;font-size:7px;">IFSC: ${esc(detail.bankDetails?.branchIfscCode)}</p>
       </div>
-      <div style="padding:8px;display:flex;flex-direction:column;justify-content:space-between;min-height:110px;">
-        <p style="text-align:right;font-weight:700;margin:0;">for ${esc(detail.seller?.companyName)}</p>
-        <div style="text-align:right;margin-top:40px;">
-          <div style="display:inline-block;border-top:1px solid #000;padding-top:4px;min-width:140px;">
-            <p style="font-weight:600;margin:0;">${esc(detail.authorizedSignatory || 'Authorised Signatory')}</p>
-            <p style="font-size:10px;margin:0;">Authorised Signatory</p>
-          </div>
+      <div style="padding:2px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;min-height:40px;">
+        <p style="margin:0;font-size:7px;font-weight:600;">for ${esc(detail.seller?.companyName)}</p>
+        <div style="margin-top:8px;">
+          <p style="margin:0;font-size:7px;font-weight:600;border-top:1px solid #000;padding-top:2px;min-width:120px;">${esc(detail.authorizedSignatory || 'Auth. Signatory')}</p>
         </div>
       </div>
     </div>
 
-    <div style="text-align:center;padding:5px 8px;border-top:1px solid #000;font-size:10px;color:#333;">This is a Computer Generated Invoice</div>
+    <div style="text-align:center;padding:2px 3px;border-top:1px solid #000;font-size:6px;color:#333;">Computer Generated Invoice - Valid without signature</div>
   </div>
   `;
 };
 
 export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
-  // Fit on single A4 page: 210mm × 297mm
-  // Use smaller render width to zoom out content on final PDF
-  const HTML_RENDER_WIDTH_PX = 620;
+  // Ultra compact for single A4 page
+  const HTML_RENDER_WIDTH_PX = 550;
   const A4_PRINTABLE_WIDTH_MM = 190;
 
   const host = document.createElement('div');
@@ -340,12 +330,12 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
     <style>
       body, html { margin: 0; padding: 0; }
       #invoice-root table, #invoice-root th, #invoice-root td { border-collapse: collapse; }
-      #invoice-root .th, #invoice-root .td { border: 1px solid #000; padding: 3px 5px; text-align: left; vertical-align: top; font-size: 10px; }
-      #invoice-root .cell-head { border: 1px solid #000; padding: 3px 5px; font-weight: 600; width: 45%; }
-      #invoice-root .cell-value { border: 1px solid #000; padding: 3px 5px; }
+      #invoice-root .th, #invoice-root .td { border: 1px solid #000; padding: 1px 2px; text-align: left; vertical-align: top; font-size: 7px; line-height: 1.1; }
+      #invoice-root .cell-head { border: 1px solid #000; padding: 1px 2px; font-weight: 600; width: 45%; font-size: 7px; }
+      #invoice-root .cell-value { border: 1px solid #000; padding: 1px 2px; font-size: 7px; }
       #invoice-root .c-right { text-align: right; }
       #invoice-root .c-center { text-align: center; }
-      #invoice-root p { margin: 0; }
+      #invoice-root p { margin: 0; line-height: 1.2; }
       * { box-sizing: border-box; }
     </style>
     ${buildInvoiceHtml(detail)}
@@ -360,8 +350,8 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
   }
 
   (root as HTMLElement).style.width = `${HTML_RENDER_WIDTH_PX}px`;
-  (root as HTMLElement).style.fontSize = '10px';
-  (root as HTMLElement).style.lineHeight = '1.3';
+  (root as HTMLElement).style.fontSize = '7px';
+  (root as HTMLElement).style.lineHeight = '1.2';
 
   const doc = new jsPDF({
     orientation: 'p',
@@ -370,7 +360,7 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
     compress: true,
   });
 
-  const marginMm = 8;
+  const marginMm = 6;
 
   await new Promise<void>((resolve, reject) => {
     try {
@@ -380,7 +370,7 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
         width: A4_PRINTABLE_WIDTH_MM,
         windowWidth: HTML_RENDER_WIDTH_PX,
         html2canvas: {
-          scale: 0.8,
+          scale: 0.6,
           backgroundColor: '#ffffff',
           logging: false,
           useCORS: true,
