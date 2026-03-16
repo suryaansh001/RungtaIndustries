@@ -5,8 +5,7 @@ import { KPICard } from '@/components/KPICard';
 import { InvoiceStatusBadge, BillingTypeBadge } from '@/components/StatusBadge';
 import { CreateInvoiceSheet } from '@/components/billing/CreateInvoiceSheet';
 import { BulkBillingModal } from '@/components/billing/BulkBillingModal';
-import { mockBillingActivity, type InvoiceStatus } from '@/lib/billing-data';
-import { mockParties } from '@/lib/mock-data';
+import { type InvoiceStatus } from '@/lib/billing-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,7 +15,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -31,8 +29,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useApi } from '@/hooks/useApi';
 import { invoiceService, type InvoiceListItem, type InvoicePayload } from '@/lib/services/invoiceService';
-import { generateInvoicePdf } from '@/lib/generateInvoicePdf';
-import { mockBillingSettings, type Invoice } from '@/lib/billing-data';
+import { downloadInvoicePreviewPdf } from '@/lib/invoicePreviewPdf';
 
 const statusOptions: { value: InvoiceStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All Statuses' },
@@ -95,58 +92,58 @@ export default function Billing() {
     return true;
   }), [search, clientFilter, statusFilter, dateFrom, dateTo, overdueOnly, invoices]);
 
+  const clientOptions = useMemo(() => {
+    const grouped = new Map<string, string>();
+    invoices.forEach((inv) => {
+      if (inv.clientId && !grouped.has(inv.clientId)) grouped.set(inv.clientId, inv.clientName || 'Unknown Client');
+    });
+    return Array.from(grouped.entries()).map(([id, name]) => ({ id, name }));
+  }, [invoices]);
+
+  const activityRows = useMemo(() => invoices.slice(0, 50).map((inv) => {
+    const mapStatusToAction: Record<string, string> = {
+      draft: 'Draft Saved',
+      generated: 'Generated',
+      sent: 'Sent',
+      partially_paid: 'Payment Added',
+      paid: 'Payment Added',
+      overdue: 'Generated',
+    };
+    return {
+      id: inv.id,
+      date: inv.invoiceDate,
+      user: 'System',
+      action: mapStatusToAction[inv.status] || 'Generated',
+      reference: inv.invoiceNumber,
+      details: `${inv.clientName} | Total: ₹${inv.total.toLocaleString('en-IN')}`,
+    };
+  }), [invoices]);
+
   const handleInvoiceSave = async (invoice: InvoicePayload) => {
     await invoiceService.create(invoice);
     await refetch();
   };
 
+  const handleMarkAsPaid = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      await invoiceService.updateStatus(invoiceId, 'PAID');
+      await refetch();
+      toast({
+        title: 'Invoice marked as paid',
+        description: `${invoiceNumber} has been fully paid.`,
+      });
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
+        || (error as { message?: string })?.message
+        || 'Failed to update invoice status';
+      toast({ title: message, variant: 'destructive' });
+    }
+  };
+
   const handleDownloadInvoicePdf = async (invoiceId: string) => {
     try {
       const detail = await invoiceService.getOne(invoiceId);
-      const pdfInvoice: Invoice = {
-        id: detail.id,
-        invoiceNumber: detail.invoiceNumber,
-        clientId: detail.clientId || '',
-        clientName: detail.clientName || detail.buyer?.companyName || '-',
-        billingType: 'manual',
-        invoiceDate: detail.invoiceDate,
-        dueDate: detail.dueDate || detail.invoiceDate,
-        paymentTerms: detail.paymentTerms || 'Net 15',
-        lineItems: (detail.lineItems || []).map((li: {
-          id: string;
-          description: string;
-          quantity: number;
-          rate: number;
-          taxableAmount?: number;
-        }) => ({
-          id: li.id,
-          description: li.description,
-          quantity: Number(li.quantity) || 0,
-          rate: Number(li.rate) || 0,
-          amount: Number(li.taxableAmount) || (Number(li.quantity) || 0) * (Number(li.rate) || 0),
-        })),
-        subtotal: Number(detail.totals?.totalTaxableValue ?? detail.subtotal ?? 0),
-        gstPercent: 18,
-        gstAmount: Number(detail.totals?.cgstAmount ?? 0) + Number(detail.totals?.sgstAmount ?? 0) + Number(detail.totals?.igstAmount ?? 0),
-        roundOff: Number(detail.totals?.roundOff ?? 0),
-        total: Number(detail.totals?.totalInvoiceAmount ?? detail.total ?? 0),
-        paid: Number(detail.paid ?? 0),
-        outstanding: Number(detail.outstanding ?? 0),
-        status: (detail.status || 'draft') as Invoice['status'],
-        notes: detail.remarks || '',
-      };
-
-      generateInvoicePdf(pdfInvoice, {
-        ...mockBillingSettings,
-        companyName: detail.seller?.companyName || mockBillingSettings.companyName,
-        companyAddress: detail.seller?.fullAddress || mockBillingSettings.companyAddress,
-        bankDetails: [
-          detail.bankDetails?.accountHolderName ? `A/c Holder: ${detail.bankDetails.accountHolderName}` : '',
-          detail.bankDetails?.bankName ? `Bank: ${detail.bankDetails.bankName}` : '',
-          detail.bankDetails?.accountNumber ? `A/c: ${detail.bankDetails.accountNumber}` : '',
-          detail.bankDetails?.branchIfscCode ? `IFSC: ${detail.bankDetails.branchIfscCode}` : '',
-        ].filter(Boolean).join(' | ') || mockBillingSettings.bankDetails,
-      });
+      await downloadInvoicePreviewPdf(detail);
     } catch (error: unknown) {
       const message = (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
         || (error as { message?: string })?.message
@@ -185,13 +182,15 @@ export default function Billing() {
           </TabsList>
 
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowBulkModal(true)}
-              className="border-info/30 text-info hover:bg-info/10 text-sm"
-            >
-              <Zap className="h-4 w-4 mr-1.5" /> Generate Monthly Invoices
-            </Button>
+            <span title="Work in progress" className="inline-block cursor-not-allowed">
+              <Button
+                variant="outline"
+                disabled
+                className="pointer-events-none border-info/30 text-info text-sm"
+              >
+                <Zap className="h-4 w-4 mr-1.5" /> Generate Monthly Invoices
+              </Button>
+            </span>
             <Button
               onClick={() => setShowCreateSheet(true)}
               className="bg-info hover:bg-info/90 text-white text-sm"
@@ -221,7 +220,7 @@ export default function Billing() {
               </SelectTrigger>
               <SelectContent className="bg-popover border-border">
                 <SelectItem value="all" className="text-foreground">All Clients</SelectItem>
-                {mockParties.map(p => (
+                {clientOptions.map((p) => (
                   <SelectItem key={p.id} value={p.id} className="text-foreground">{p.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -358,8 +357,8 @@ export default function Billing() {
                             </DropdownMenuItem>
                           )}
                           {inv.status !== 'paid' && inv.status !== 'draft' && (
-                            <DropdownMenuItem className="text-foreground">
-                              <DollarSign className="h-3.5 w-3.5 mr-2" /> Add Payment
+                            <DropdownMenuItem className="text-foreground" onClick={() => handleMarkAsPaid(inv.id, inv.invoiceNumber)}>
+                              <DollarSign className="h-3.5 w-3.5 mr-2" /> Mark as Paid
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem className="text-destructive">
@@ -393,7 +392,14 @@ export default function Billing() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockBillingActivity.map(act => (
+                {activityRows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-10 text-sm">
+                      No activity available from live invoice data yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {activityRows.map(act => (
                   <TableRow key={act.id} className="border-border hover:bg-secondary/30">
                     <TableCell className="text-sm font-mono-id text-muted-foreground">{act.date}</TableCell>
                     <TableCell className="text-sm text-foreground">{act.user}</TableCell>
