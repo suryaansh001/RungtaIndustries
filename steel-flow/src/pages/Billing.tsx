@@ -74,6 +74,7 @@ export default function Billing() {
   const [dateTo, setDateTo] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<{ invoiceId: string; target: string } | null>(null);
+  const [pdfDownloading, setPdfDownloading] = useState<string | null>(null);
 
   // KPIs
   const total = invoices.reduce((s, i) => s + i.total, 0);
@@ -182,25 +183,42 @@ export default function Billing() {
 
   const handleDownloadInvoicePdf = async (invoiceId: string) => {
     try {
+      setPdfDownloading(invoiceId);
       const detail = await invoiceService.getOne(invoiceId);
       await downloadInvoicePreviewPdf(detail);
+      toast({
+        title: 'PDF Downloaded',
+        description: `Invoice ${detail.invoiceNumber} has been downloaded successfully.`,
+      });
     } catch (error: unknown) {
       const message = (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
         || (error as { message?: string })?.message
         || 'Failed to download invoice PDF';
       toast({ title: message, variant: 'destructive' });
+    } finally {
+      setPdfDownloading(null);
     }
   };
 
   return (
     <AppLayout>
-      {statusUpdating && (
+      {(statusUpdating || pdfDownloading) && (
         <div className="fixed inset-0 z-[120] bg-background/70 backdrop-blur-sm flex items-center justify-center">
           <div className="rounded-lg border border-border bg-card px-6 py-5 flex items-center gap-3 shadow-lg">
             <Loader2 className="h-5 w-5 animate-spin text-info" />
             <div>
-              <p className="text-sm font-medium text-foreground">Updating invoice status...</p>
-              <p className="text-xs text-muted-foreground">Please wait until the status transition completes.</p>
+              {pdfDownloading && (
+                <>
+                  <p className="text-sm font-medium text-foreground">Generating PDF...</p>
+                  <p className="text-xs text-muted-foreground">Converting invoice to PDF, please wait.</p>
+                </>
+              )}
+              {statusUpdating && (
+                <>
+                  <p className="text-sm font-medium text-foreground">Updating invoice status...</p>
+                  <p className="text-xs text-muted-foreground">Please wait until the status transition completes.</p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -391,9 +409,10 @@ export default function Billing() {
                         <DropdownMenuContent align="end" className="bg-popover border-border text-sm">
                           <DropdownMenuItem
                             className="text-foreground"
+                            disabled={pdfDownloading === inv.id}
                             onClick={() => handleDownloadInvoicePdf(inv.id)}
                           >
-                            <FileText className="h-3.5 w-3.5 mr-2" /> Download PDF
+                            <FileText className="h-3.5 w-3.5 mr-2" /> {pdfDownloading === inv.id ? 'Generating...' : 'Download PDF'}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => toast({ title: 'Detailed view will be available shortly.' })} className="text-foreground">
                             <Eye className="h-3.5 w-3.5 mr-2" /> View

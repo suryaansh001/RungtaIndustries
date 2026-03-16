@@ -185,7 +185,7 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
   `).join('');
 
   return `
-  <div id="invoice-root" style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #fff; border: 1px solid #000; width: 794px; box-sizing: border-box;">
+  <div id="invoice-root" style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #fff; border: 1px solid #000; width: 100%; box-sizing: border-box; margin: 0; padding: 0;">
     <div style="text-align:center;font-weight:bold;font-size:15px;padding:6px 8px;border-bottom:1px solid #000;letter-spacing:1px;">Tax Invoice</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;">
@@ -324,24 +324,29 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
 };
 
 export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
-  // A4 width at ~96 DPI, used as html rendering baseline for predictable scaling.
-  const A4_HTML_WIDTH_PX = 794;
+  // Fit on single A4 page: 210mm × 297mm
+  // Use smaller render width to zoom out content on final PDF
+  const HTML_RENDER_WIDTH_PX = 620;
+  const A4_PRINTABLE_WIDTH_MM = 190;
 
   const host = document.createElement('div');
   host.style.position = 'fixed';
   host.style.left = '-10000px';
   host.style.top = '0';
-  host.style.width = `${A4_HTML_WIDTH_PX}px`;
+  host.style.width = `${HTML_RENDER_WIDTH_PX}px`;
+  host.style.backgroundColor = '#ffffff';
 
   host.innerHTML = `
     <style>
+      body, html { margin: 0; padding: 0; }
       #invoice-root table, #invoice-root th, #invoice-root td { border-collapse: collapse; }
-      #invoice-root .th, #invoice-root .td { border: 1px solid #000; padding: 4px 6px; text-align: left; vertical-align: top; }
-      #invoice-root .cell-head { border: 1px solid #000; padding: 3px 6px; font-weight: 600; width: 45%; }
-      #invoice-root .cell-value { border: 1px solid #000; padding: 3px 6px; }
+      #invoice-root .th, #invoice-root .td { border: 1px solid #000; padding: 3px 5px; text-align: left; vertical-align: top; font-size: 10px; }
+      #invoice-root .cell-head { border: 1px solid #000; padding: 3px 5px; font-weight: 600; width: 45%; }
+      #invoice-root .cell-value { border: 1px solid #000; padding: 3px 5px; }
       #invoice-root .c-right { text-align: right; }
       #invoice-root .c-center { text-align: center; }
       #invoice-root p { margin: 0; }
+      * { box-sizing: border-box; }
     </style>
     ${buildInvoiceHtml(detail)}
   `;
@@ -354,26 +359,41 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
     throw new Error('Unable to render invoice preview for PDF');
   }
 
-  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-  const marginMm = 8;
-  const printableWidthMm = doc.internal.pageSize.getWidth() - (marginMm * 2);
+  (root as HTMLElement).style.width = `${HTML_RENDER_WIDTH_PX}px`;
+  (root as HTMLElement).style.fontSize = '10px';
+  (root as HTMLElement).style.lineHeight = '1.3';
 
-  await new Promise<void>((resolve) => {
-    (doc as jsPDF & { html: (element: HTMLElement, opts: Record<string, unknown>) => void }).html(root, {
-      x: marginMm,
-      y: marginMm,
-      width: printableWidthMm,
-      windowWidth: A4_HTML_WIDTH_PX,
-      autoPaging: 'slice',
-      html2canvas: {
-        scale: 1.5,
-        backgroundColor: '#ffffff',
-      },
-      callback: (pdf: jsPDF) => {
-        pdf.save(`${detail.invoiceNumber}.pdf`);
-        resolve();
-      },
-    });
+  const doc = new jsPDF({
+    orientation: 'p',
+    unit: 'mm',
+    format: 'a4',
+    compress: true,
+  });
+
+  const marginMm = 8;
+
+  await new Promise<void>((resolve, reject) => {
+    try {
+      (doc as jsPDF & { html: (element: HTMLElement, opts: Record<string, unknown>) => void }).html(root, {
+        x: marginMm,
+        y: marginMm,
+        width: A4_PRINTABLE_WIDTH_MM,
+        windowWidth: HTML_RENDER_WIDTH_PX,
+        html2canvas: {
+          scale: 0.8,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+        },
+        callback: (pdf: jsPDF) => {
+          pdf.save(`${detail.invoiceNumber}.pdf`);
+          resolve();
+        },
+      });
+    } catch (error) {
+      reject(error);
+    }
   });
 
   document.body.removeChild(host);
