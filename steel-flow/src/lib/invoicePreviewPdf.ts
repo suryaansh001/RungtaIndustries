@@ -315,9 +315,14 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
 };
 
 export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
-  // Ultra compact for single A4 page
-  const HTML_RENDER_WIDTH_PX = 550;
-  const A4_PRINTABLE_WIDTH_MM = 190;
+  // A4 page: 210mm wide, 297mm tall. At 96dpi, 1mm ≈ 3.7795px.
+  // We render the HTML at exactly the pixel width that maps to the
+  // printable area (210mm - 2×6mm margin = 198mm) at 96dpi.
+  const marginMm = 6;
+  const A4_WIDTH_MM = 210;
+  const A4_PRINTABLE_WIDTH_MM = A4_WIDTH_MM - marginMm * 2; // 198mm
+  const MM_TO_PX = 3.7795275591;
+  const HTML_RENDER_WIDTH_PX = Math.round(A4_PRINTABLE_WIDTH_MM * MM_TO_PX); // ≈ 748px
 
   const host = document.createElement('div');
   host.style.position = 'fixed';
@@ -349,9 +354,9 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
     throw new Error('Unable to render invoice preview for PDF');
   }
 
-  (root as HTMLElement).style.width = `${HTML_RENDER_WIDTH_PX}px`;
-  (root as HTMLElement).style.fontSize = '7px';
-  (root as HTMLElement).style.lineHeight = '1.2';
+  root.style.width = `${HTML_RENDER_WIDTH_PX}px`;
+  root.style.fontSize = '7px';
+  root.style.lineHeight = '1.2';
 
   const doc = new jsPDF({
     orientation: 'p',
@@ -360,17 +365,16 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
     compress: true,
   });
 
-  const marginMm = 6;
-
   await new Promise<void>((resolve, reject) => {
     try {
       (doc as jsPDF & { html: (element: HTMLElement, opts: Record<string, unknown>) => void }).html(root, {
         x: marginMm,
         y: marginMm,
-        width: A4_PRINTABLE_WIDTH_MM,
-        windowWidth: HTML_RENDER_WIDTH_PX,
+        width: A4_PRINTABLE_WIDTH_MM,   // output width in mm
+        windowWidth: HTML_RENDER_WIDTH_PX, // must match the px width above
+        autoPaging: 'slice',            // prevents content being cut at page boundary
         html2canvas: {
-          scale: 0.6,
+          scale: 1,                     // 1:1 — no scaling; width alignment handles sizing
           backgroundColor: '#ffffff',
           logging: false,
           useCORS: true,
