@@ -1,14 +1,11 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { KPICard } from '@/components/KPICard';
 import { InvoiceStatusBadge, BillingTypeBadge } from '@/components/StatusBadge';
 import { CreateInvoiceSheet } from '@/components/billing/CreateInvoiceSheet';
 import { BulkBillingModal } from '@/components/billing/BulkBillingModal';
-import { mockInvoices, mockBillingActivity, type InvoiceStatus } from '@/lib/billing-data';
-import { mockBillingSettings } from '@/lib/billing-data';
-import { generateInvoicePdf } from '@/lib/generateInvoicePdf';
+import { mockBillingActivity, type InvoiceStatus } from '@/lib/billing-data';
 import { mockParties } from '@/lib/mock-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -32,6 +29,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useApi } from '@/hooks/useApi';
+import { invoiceService, type InvoiceListItem, type InvoicePayload } from '@/lib/services/invoiceService';
 
 const statusOptions: { value: InvoiceStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All Statuses' },
@@ -43,7 +42,7 @@ const statusOptions: { value: InvoiceStatus | 'all'; label: string }[] = [
   { value: 'overdue', label: 'Overdue' },
 ];
 
-function exportCSV(rows: typeof mockInvoices, filename: string) {
+function exportCSV(rows: InvoiceListItem[], filename: string) {
   const headers = ['Invoice No', 'Client', 'Type', 'Date', 'Due Date', 'Subtotal', 'GST', 'Total', 'Paid', 'Outstanding', 'Status'];
   const data = rows.map(i => [
     i.invoiceNumber, i.clientName, i.billingType, i.invoiceDate, i.dueDate,
@@ -57,8 +56,12 @@ function exportCSV(rows: typeof mockInvoices, filename: string) {
 }
 
 export default function Billing() {
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const { data: invoiceRes, loading: invoiceLoading, refetch } = useApi(
+    () => invoiceService.getAll({ limit: 300 }),
+    []
+  );
+  const invoices: InvoiceListItem[] = invoiceRes?.data ?? [];
 
   // Sheet / Modal state
   const [showCreateSheet, setShowCreateSheet] = useState(false);
@@ -73,13 +76,13 @@ export default function Billing() {
   const [overdueOnly, setOverdueOnly] = useState(false);
 
   // KPIs
-  const total = mockInvoices.reduce((s, i) => s + i.total, 0);
-  const outstanding = mockInvoices.reduce((s, i) => s + i.outstanding, 0);
-  const paid = mockInvoices.reduce((s, i) => s + i.paid, 0);
-  const overdueCount = mockInvoices.filter(i => i.status === 'overdue').length;
+  const total = invoices.reduce((s, i) => s + i.total, 0);
+  const outstanding = invoices.reduce((s, i) => s + i.outstanding, 0);
+  const paid = invoices.reduce((s, i) => s + i.paid, 0);
+  const overdueCount = invoices.filter(i => i.status === 'overdue').length;
 
   // Filtered invoices
-  const filtered = useMemo(() => mockInvoices.filter(inv => {
+  const filtered = useMemo(() => invoices.filter(inv => {
     if (search && !inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) &&
         !inv.clientName.toLowerCase().includes(search.toLowerCase())) return false;
     if (clientFilter !== 'all' && inv.clientId !== clientFilter) return false;
@@ -88,7 +91,12 @@ export default function Billing() {
     if (dateTo && inv.invoiceDate > dateTo) return false;
     if (overdueOnly && inv.status !== 'overdue') return false;
     return true;
-  }), [search, clientFilter, statusFilter, dateFrom, dateTo, overdueOnly]);
+  }), [search, clientFilter, statusFilter, dateFrom, dateTo, overdueOnly, invoices]);
+
+  const handleInvoiceSave = async (invoice: InvoicePayload) => {
+    await invoiceService.create(invoice);
+    await refetch();
+  };
 
   return (
     <AppLayout>
@@ -217,7 +225,14 @@ export default function Billing() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 && (
+                {invoiceLoading && (
+                  <TableRow>
+                    <TableCell colSpan={13} className="text-center text-muted-foreground py-8 text-sm">
+                      Loading invoices...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!invoiceLoading && filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={13} className="text-center text-muted-foreground py-12 text-sm">
                       No invoices match the current filters.
@@ -227,8 +242,7 @@ export default function Billing() {
                 {filtered.map((inv, idx) => (
                   <TableRow
                     key={inv.id}
-                    className="border-border row-hover-border cursor-pointer"
-                    onClick={() => navigate(`/billing/${inv.id}`)}
+                    className="border-border row-hover-border"
                   >
                     <TableCell className="text-muted-foreground text-xs">{idx + 1}</TableCell>
                     <TableCell>
@@ -270,17 +284,15 @@ export default function Billing() {
                           <DropdownMenuItem
                             className="text-foreground"
                             onClick={() => {
-                              try {
-                                generateInvoicePdf(inv, mockBillingSettings);
-                                toast({ title: 'PDF downloaded', description: `${inv.invoiceNumber}.pdf saved.` });
-                              } catch {
-                                toast({ title: 'PDF failed', variant: 'destructive' });
-                              }
+                              toast({
+                                title: 'Use invoice preview',
+                                description: 'Open the invoice in preview before exporting PDF.',
+                              });
                             }}
                           >
                             <FileText className="h-3.5 w-3.5 mr-2" /> Download PDF
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/billing/${inv.id}`)} className="text-foreground">
+                          <DropdownMenuItem onClick={() => toast({ title: 'Detailed view will be available shortly.' })} className="text-foreground">
                             <Eye className="h-3.5 w-3.5 mr-2" /> View
                           </DropdownMenuItem>
                           {inv.status === 'draft' && (
@@ -311,7 +323,7 @@ export default function Billing() {
           </div>
 
           <p className="text-xs text-muted-foreground px-1">
-            Showing {filtered.length} of {mockInvoices.length} invoices
+            Showing {filtered.length} of {invoices.length} invoices
           </p>
         </TabsContent>
 
@@ -410,7 +422,7 @@ export default function Billing() {
       </Tabs>
 
       {/* Sheets / Modals */}
-      <CreateInvoiceSheet open={showCreateSheet} onOpenChange={setShowCreateSheet} />
+      <CreateInvoiceSheet open={showCreateSheet} onOpenChange={setShowCreateSheet} onSave={handleInvoiceSave} />
       <BulkBillingModal open={showBulkModal} onOpenChange={setShowBulkModal} />
     </AppLayout>
   );

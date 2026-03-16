@@ -1,602 +1,806 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
-import { mockParties } from '@/lib/mock-data';
-import {
-  type Invoice, type InvoiceLineItem, type BillingType,
-  mockBillingSettings, getLastInvoiceNumber, getNextInvoiceNumber,
-} from '@/lib/billing-data';
-import {
-  ChevronRight, Plus, Trash2, Copy, AlertCircle, CheckCircle2, FileText,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useApi } from '@/hooks/useApi';
+import { partyService } from '@/lib/services/partyService';
+import { type InvoicePayload } from '@/lib/services/invoiceService';
+import { getLastInvoiceNumber, getNextInvoiceNumber, mockBillingSettings } from '@/lib/billing-data';
+import { FileText, Plus, Trash2 } from 'lucide-react';
+
+type Step = 'header' | 'items' | 'preview';
+
+type PartyRow = {
+  id: string;
+  name: string;
+  gst?: string;
+  address?: string;
+};
+
+type LineItemInput = {
+  id: string;
+  description: string;
+  hsn_sac_code: string;
+  gst_rate: string;
+  quantity: string;
+  unit: string;
+  rate: string;
+};
 
 interface CreateInvoiceSheetProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  editInvoice?: Invoice | null;
-  onSave?: (invoice: Partial<Invoice>, isDraft: boolean) => void;
+  onSave?: (invoice: InvoicePayload, isDraft: boolean) => Promise<void> | void;
 }
-
-const BILLING_TYPES: { value: BillingType; label: string }[] = [
-  { value: 'storage', label: 'Storage Charges' },
-  { value: 'processing', label: 'Processing Charges' },
-  { value: 'product', label: 'Product-based' },
-  { value: 'manual', label: 'Manual Adjustment' },
-];
 
 const PAYMENT_TERMS = ['Net 7', 'Net 14', 'Net 15', 'Net 30', 'Net 45', 'Due on Receipt'];
 
-const emptyLineItem = (): InvoiceLineItem => ({
+const emptyLineItem = (): LineItemInput => ({
   id: `li-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   description: '',
-  quantity: 1,
-  rate: 0,
-  amount: 0,
+  hsn_sac_code: '',
+  gst_rate: '18',
+  quantity: '',
+  unit: 'TON',
+  rate: '',
 });
 
-const STEP_LABELS = ['Header', 'Line Items', 'Review'];
+const numberInputRegex = /^\d*(\.\d{0,3})?$/;
 
-export function CreateInvoiceSheet({
-  open, onOpenChange, editInvoice, onSave,
-}: CreateInvoiceSheetProps) {
+const toNum = (value: string) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const round2 = (n: number) => Number(n.toFixed(2));
+const round3 = (n: number) => Number(n.toFixed(3));
+const fmt2 = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function amountToWords(value: number) {
+  const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const belowThousand = (n: number): string => {
+    const hundred = Math.floor(n / 100);
+    const rest = n % 100;
+    const left = hundred ? `${units[hundred]} Hundred` : '';
+    if (!rest) return left;
+    const right = rest < 20 ? units[rest] : `${tens[Math.floor(rest / 10)]}${rest % 10 ? ` ${units[rest % 10]}` : ''}`;
+    return `${left}${left ? ' ' : ''}${right}`;
+  };
+
+  const n = Math.floor(Math.abs(value));
+  if (!n) return 'Indian Rupees Zero Only';
+
+  const crore = Math.floor(n / 10000000);
+  const lakh = Math.floor((n % 10000000) / 100000);
+  const thousand = Math.floor((n % 100000) / 1000);
+  const rest = n % 1000;
+
+  const parts: string[] = [];
+  if (crore) parts.push(`${belowThousand(crore)} Crore`);
+  if (lakh) parts.push(`${belowThousand(lakh)} Lakh`);
+  if (thousand) parts.push(`${belowThousand(thousand)} Thousand`);
+  if (rest) parts.push(belowThousand(rest));
+
+  return `Indian Rupees ${parts.join(' ').trim()} Only`;
+}
+
+export function CreateInvoiceSheet({ open, onOpenChange, onSave }: CreateInvoiceSheetProps) {
   const { toast } = useToast();
-  const lastInvNo = getLastInvoiceNumber();
-  const nextInvNo = getNextInvoiceNumber(mockBillingSettings.invoicePrefix);
+  const { data: partyRes } = useApi(() => partyService.getAll({ limit: 200 }), []);
+  const parties: PartyRow[] = partyRes?.data ?? [];
 
-  // ── Form State ────────────────────────────
-  const [step, setStep] = useState(1);
-  const [invoiceNumber, setInvoiceNumber] = useState(nextInvNo);
+  const [step, setStep] = useState<Step>('header');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [invoiceNumber, setInvoiceNumber] = useState(getNextInvoiceNumber(mockBillingSettings.invoicePrefix));
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState('');
-  const [clientId, setClientId] = useState('');
-  const [billingType, setBillingType] = useState<BillingType>('storage');
-  const [paymentTerms, setPaymentTerms] = useState(mockBillingSettings.defaultPaymentTerms);
-  const [notes, setNotes] = useState('');
-  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([emptyLineItem()]);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [deliveryNote, setDeliveryNote] = useState('');
+  const [termsOfPayment, setTermsOfPayment] = useState(mockBillingSettings.defaultPaymentTerms);
+  const [referenceNoDate, setReferenceNoDate] = useState('');
+  const [destination, setDestination] = useState('');
 
-  // Pre-fill when editing
-  useEffect(() => {
-    if (editInvoice) {
-      setInvoiceNumber(editInvoice.invoiceNumber);
-      setInvoiceDate(editInvoice.invoiceDate);
-      setDueDate(editInvoice.dueDate);
-      setClientId(editInvoice.clientId);
-      setBillingType(editInvoice.billingType);
-      setPaymentTerms(editInvoice.paymentTerms);
-      setNotes(editInvoice.notes ?? '');
-      setLineItems(editInvoice.lineItems.length ? editInvoice.lineItems : [emptyLineItem()]);
-    } else {
-      resetForm();
-    }
-  }, [editInvoice, open]);
+  const [selectedPartyId, setSelectedPartyId] = useState('');
 
-  // Auto-calc due date from payment terms
-  useEffect(() => {
-    if (!invoiceDate || !paymentTerms) return;
-    const days = parseInt(paymentTerms.replace('Net ', ''), 10);
-    if (isNaN(days)) return;
-    const d = new Date(invoiceDate);
-    d.setDate(d.getDate() + days);
-    setDueDate(d.toISOString().slice(0, 10));
-  }, [invoiceDate, paymentTerms]);
+  const [sellerCompanyName, setSellerCompanyName] = useState('RUNGTA INDUSTRIAL CORPORATION');
+  const [sellerAddress, setSellerAddress] = useState('F-543, ROAD No.6-D, V.K.I AREA, Jaipur, Rajasthan - 302013, India');
+  const [sellerGstin, setSellerGstin] = useState('08AABFR8172R1ZE');
+  const [sellerStateName, setSellerStateName] = useState('Rajasthan');
+  const [sellerStateCode, setSellerStateCode] = useState('08');
+  const [sellerEmail, setSellerEmail] = useState('rungta@gmail.com');
 
-  function resetForm() {
-    setStep(1);
-    setInvoiceNumber(nextInvNo);
-    setInvoiceDate(new Date().toISOString().slice(0, 10));
-    setDueDate('');
-    setClientId('');
-    setBillingType('storage');
-    setPaymentTerms(mockBillingSettings.defaultPaymentTerms);
-    setNotes('');
-    setLineItems([emptyLineItem()]);
-    setDateFrom('');
-    setDateTo('');
-  }
+  const [consigneeCompanyName, setConsigneeCompanyName] = useState('');
+  const [consigneeAddress, setConsigneeAddress] = useState('');
+  const [consigneeGstin, setConsigneeGstin] = useState('');
+  const [consigneeStateName, setConsigneeStateName] = useState('');
+  const [consigneeStateCode, setConsigneeStateCode] = useState('');
 
-  // ── Calculations ──────────────────────────
-  const subtotal = lineItems.reduce((s, li) => s + li.amount, 0);
-  const gstAmount = Math.round(subtotal * mockBillingSettings.gstPercent) / 100;
-  const rawTotal = subtotal + gstAmount;
-  const roundOff = Math.round(rawTotal) - rawTotal;
-  const grandTotal = Math.round(rawTotal);
+  const [buyerCompanyName, setBuyerCompanyName] = useState('');
+  const [buyerAddress, setBuyerAddress] = useState('');
+  const [buyerGstin, setBuyerGstin] = useState('');
+  const [buyerStateName, setBuyerStateName] = useState('Rajasthan');
+  const [buyerStateCode, setBuyerStateCode] = useState('08');
 
-  // ── Line Item Helpers ─────────────────────
-  function updateLineItem(id: string, field: keyof InvoiceLineItem, val: string | number) {
-    setLineItems(prev => prev.map(li => {
-      if (li.id !== id) return li;
-      const updated = { ...li, [field]: val };
-      if (field === 'quantity' || field === 'rate') {
-        updated.amount = Number(updated.quantity) * Number(updated.rate);
-      }
-      return updated;
-    }));
-  }
+  const [lineItems, setLineItems] = useState<LineItemInput[]>([emptyLineItem()]);
 
-  function addLineItem() {
-    setLineItems(prev => [...prev, emptyLineItem()]);
-  }
+  const [roundOffInput, setRoundOffInput] = useState('0');
 
-  function removeLineItem(id: string) {
-    setLineItems(prev => prev.filter(li => li.id !== id));
-  }
+  const [bankAccountHolderName, setBankAccountHolderName] = useState('RUNGTA INDUSTRIAL CORPORATION');
+  const [bankName, setBankName] = useState('HDFC Bank');
+  const [bankAccountNumber, setBankAccountNumber] = useState('0542000011197');
+  const [bankBranchIfsc, setBankBranchIfsc] = useState('Vaishkarma Ind Area, Jaipur & HDFC0003774');
+  const [bankSwift, setBankSwift] = useState('');
 
-  const clientName = mockParties.find(p => p.id === clientId)?.name ?? '';
+  const [companyPan, setCompanyPan] = useState('AABFR8172R');
+  const [remarks, setRemarks] = useState('');
+  const [declarationText, setDeclarationText] = useState('We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.');
+  const [authorizedSignatory, setAuthorizedSignatory] = useState('Authorised Signatory');
 
-  function buildInvoice(status: 'draft' | 'generated'): Partial<Invoice> {
+  const computedLineItems = useMemo(() => lineItems.map((li, idx) => {
+    const quantity = round3(toNum(li.quantity));
+    const rate = round2(toNum(li.rate));
+    const gstRate = round2(toNum(li.gst_rate));
+    const taxableAmount = round2(quantity * rate);
+    const cgstAmount = round2((taxableAmount * gstRate) / 200);
+    const sgstAmount = round2((taxableAmount * gstRate) / 200);
+    const totalAmount = round2(taxableAmount + cgstAmount + sgstAmount);
     return {
-      invoiceNumber,
-      clientId,
-      clientName,
-      billingType,
-      invoiceDate,
-      dueDate,
-      paymentTerms,
-      lineItems,
-      subtotal,
-      gstPercent: mockBillingSettings.gstPercent,
-      gstAmount,
-      roundOff,
-      total: grandTotal,
-      paid: 0,
-      outstanding: grandTotal,
-      status,
-      notes,
-      ...(status === 'generated'
-        ? { generatedBy: 'admin', generatedAt: new Date().toISOString() }
-        : {}),
+      ...li,
+      slNo: idx + 1,
+      quantity,
+      rate,
+      gstRate,
+      taxableAmount,
+      cgstAmount,
+      sgstAmount,
+      totalAmount,
     };
-  }
+  }), [lineItems]);
 
-  function handleSaveDraft() {
-    if (!clientId) { toast({ title: 'Select a client', variant: 'destructive' }); return; }
-    onSave?.(buildInvoice('draft'), true);
-    toast({ title: 'Draft saved', description: `${invoiceNumber} saved as draft.` });
-    onOpenChange(false);
-  }
+  const totals = useMemo(() => {
+    const totalQuantity = round3(computedLineItems.reduce((sum, li) => sum + li.quantity, 0));
+    const totalTaxableValue = round2(computedLineItems.reduce((sum, li) => sum + li.taxableAmount, 0));
+    const cgstAmount = round2(computedLineItems.reduce((sum, li) => sum + li.cgstAmount, 0));
+    const sgstAmount = round2(computedLineItems.reduce((sum, li) => sum + li.sgstAmount, 0));
+    const roundOff = round2(toNum(roundOffInput));
+    const totalInvoiceAmount = round2(totalTaxableValue + cgstAmount + sgstAmount + roundOff);
+    return {
+      totalQuantity,
+      totalTaxableValue,
+      cgstAmount,
+      sgstAmount,
+      roundOff,
+      totalInvoiceAmount,
+      totalInvoiceAmountWords: amountToWords(totalInvoiceAmount),
+      taxAmountWords: amountToWords(cgstAmount + sgstAmount),
+    };
+  }, [computedLineItems, roundOffInput]);
 
-  function handleGenerate() {
-    if (!clientId) { toast({ title: 'Select a client', variant: 'destructive' }); return; }
-    if (lineItems.some(li => !li.description.trim())) {
-      toast({ title: 'Fill all line item descriptions', variant: 'destructive' }); return;
+  const taxGroups = useMemo(() => {
+    const grouped: Record<string, { hsnSac: string; rate: number; taxableValue: number; cgst: number; sgst: number }> = {};
+    computedLineItems.forEach((li) => {
+      const key = `${li.hsn_sac_code || ''}-${li.gstRate}`;
+      if (!grouped[key]) {
+        grouped[key] = { hsnSac: li.hsn_sac_code || '', rate: li.gstRate, taxableValue: 0, cgst: 0, sgst: 0 };
+      }
+      grouped[key].taxableValue = round2(grouped[key].taxableValue + li.taxableAmount);
+      grouped[key].cgst = round2(grouped[key].cgst + li.cgstAmount);
+      grouped[key].sgst = round2(grouped[key].sgst + li.sgstAmount);
+    });
+    return Object.values(grouped);
+  }, [computedLineItems]);
+
+  useEffect(() => {
+    if (!open) return;
+    setInvoiceNumber(getNextInvoiceNumber(mockBillingSettings.invoicePrefix));
+  }, [open]);
+
+  useEffect(() => {
+    if (!selectedPartyId) return;
+    const party = parties.find((p) => p.id === selectedPartyId);
+    if (!party) return;
+    setBuyerCompanyName(party.name || '');
+    setBuyerAddress(party.address || '');
+    setBuyerGstin(party.gst || '');
+
+    setConsigneeCompanyName((prev) => prev || party.name || '');
+    setConsigneeAddress((prev) => prev || party.address || '');
+    setConsigneeGstin((prev) => prev || party.gst || '');
+  }, [selectedPartyId, parties]);
+
+  const handleNumericEdit = (id: string, field: 'quantity' | 'rate' | 'gst_rate', value: string) => {
+    if (value !== '' && !numberInputRegex.test(value)) return;
+    setLineItems((prev) => prev.map((li) => (li.id === id ? { ...li, [field]: value } : li)));
+  };
+
+  const updateTextField = (id: string, field: 'description' | 'hsn_sac_code' | 'unit', value: string) => {
+    setLineItems((prev) => prev.map((li) => (li.id === id ? { ...li, [field]: value } : li)));
+  };
+
+  const addLine = () => setLineItems((prev) => [...prev, emptyLineItem()]);
+  const removeLine = (id: string) => setLineItems((prev) => prev.length > 1 ? prev.filter((li) => li.id !== id) : prev);
+
+  const resetForm = () => {
+    setStep('header');
+    setIsSaving(false);
+    setInvoiceNumber(getNextInvoiceNumber(mockBillingSettings.invoicePrefix));
+    setInvoiceDate(new Date().toISOString().slice(0, 10));
+    setDeliveryNote('');
+    setTermsOfPayment(mockBillingSettings.defaultPaymentTerms);
+    setReferenceNoDate('');
+    setDestination('');
+    setSelectedPartyId('');
+
+    setConsigneeCompanyName('');
+    setConsigneeAddress('');
+    setConsigneeGstin('');
+    setConsigneeStateName('');
+    setConsigneeStateCode('');
+
+    setBuyerCompanyName('');
+    setBuyerAddress('');
+    setBuyerGstin('');
+    setBuyerStateName('Rajasthan');
+    setBuyerStateCode('08');
+
+    setLineItems([emptyLineItem()]);
+    setRoundOffInput('0');
+    setRemarks('');
+  };
+
+  const validateBeforeSubmit = () => {
+    if (!invoiceNumber.trim()) return 'Invoice number is required';
+    if (!buyerCompanyName.trim()) return 'Buyer company name is required';
+    if (!sellerCompanyName.trim()) return 'Seller company name is required';
+    if (computedLineItems.some((li) => !li.description.trim())) return 'Each line item requires a description';
+    if (computedLineItems.some((li) => li.quantity <= 0)) return 'Quantity must be greater than 0';
+    if (computedLineItems.some((li) => li.rate <= 0)) return 'Rate must be greater than 0';
+    return null;
+  };
+
+  const getPayload = (isDraft: boolean): InvoicePayload => ({
+    invoice_number: invoiceNumber.trim(),
+    invoice_date: invoiceDate,
+    delivery_note: deliveryNote || undefined,
+    terms_of_payment: termsOfPayment || undefined,
+    reference_no_date: referenceNoDate || undefined,
+    destination: destination || undefined,
+    party_id: selectedPartyId || undefined,
+
+    seller_company_name: sellerCompanyName,
+    seller_full_address: sellerAddress || undefined,
+    seller_gstin_uin: sellerGstin || undefined,
+    seller_state_name: sellerStateName || undefined,
+    seller_state_code: sellerStateCode || undefined,
+    seller_email: sellerEmail || undefined,
+
+    consignee_company_name: consigneeCompanyName || undefined,
+    consignee_address: consigneeAddress || undefined,
+    consignee_gstin_uin: consigneeGstin || undefined,
+    consignee_state_name: consigneeStateName || undefined,
+    consignee_state_code: consigneeStateCode || undefined,
+
+    buyer_company_name: buyerCompanyName,
+    buyer_address: buyerAddress || undefined,
+    buyer_gstin_uin: buyerGstin || undefined,
+    buyer_state_name: buyerStateName || undefined,
+    buyer_state_code: buyerStateCode || undefined,
+
+    line_items: computedLineItems.map((li) => ({
+      description: li.description,
+      hsn_sac_code: li.hsn_sac_code || undefined,
+      gst_rate: li.gstRate,
+      quantity: li.quantity,
+      unit: li.unit || 'TON',
+      rate: li.rate,
+    })),
+
+    round_off: totals.roundOff,
+    total_invoice_amount_words: totals.totalInvoiceAmountWords,
+
+    bank_account_holder_name: bankAccountHolderName || undefined,
+    bank_name: bankName || undefined,
+    bank_account_number: bankAccountNumber || undefined,
+    bank_branch_ifsc_code: bankBranchIfsc || undefined,
+    bank_swift_code: bankSwift || undefined,
+
+    company_pan: companyPan || undefined,
+    remarks: remarks || undefined,
+    declaration_text: declarationText || undefined,
+    authorized_signatory: authorizedSignatory || undefined,
+    is_computer_generated: true,
+    status: isDraft ? 'DRAFT' : 'GENERATED',
+  });
+
+  const submit = async (isDraft: boolean) => {
+    const err = validateBeforeSubmit();
+    if (err) {
+      toast({ title: err, variant: 'destructive' });
+      return;
     }
-    onSave?.(buildInvoice('generated'), false);
-    toast({ title: 'Invoice generated', description: `${invoiceNumber} is now locked & generated.` });
-    onOpenChange(false);
-  }
 
-  const isLocked = editInvoice?.status !== 'draft' && editInvoice != null;
+    setIsSaving(true);
+    try {
+      await onSave?.(getPayload(isDraft), isDraft);
+      toast({
+        title: isDraft ? 'Draft saved' : 'Invoice generated',
+        description: `${invoiceNumber} ${isDraft ? 'saved to draft' : 'generated and saved'} successfully.`,
+      });
+      onOpenChange(false);
+      resetForm();
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
+        || (error as { message?: string })?.message
+        || 'Failed to save invoice';
+      toast({ title: message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <Sheet open={open} onOpenChange={v => { onOpenChange(v); if (!v) resetForm(); }}>
-      <SheetContent side="right" className="sm:max-w-[860px] w-full overflow-y-auto flex flex-col p-0 bg-[hsl(225,25%,8%)] border-l border-white/10">
-        {/* Header */}
-        <SheetHeader className="px-6 py-4 border-b border-white/10 bg-card/60 backdrop-blur-sm shrink-0">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="text-foreground text-base font-semibold flex items-center gap-2">
-              <FileText className="h-4 w-4 text-info" />
-              {editInvoice ? 'Edit Invoice' : 'Create Invoice'}
-              {isLocked && <Badge variant="outline" className="text-xs text-warning border-warning/30 ml-2">Locked</Badge>}
-            </SheetTitle>
-            {/* Step indicator */}
-            <div className="flex items-center gap-1">
-              {STEP_LABELS.map((label, i) => (
-                <div key={i} className="flex items-center">
-                  <button
-                    onClick={() => !isLocked && setStep(i + 1)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all duration-150',
-                      step === i + 1
-                        ? 'bg-info/20 text-info border border-info/30'
-                        : step > i + 1
-                          ? 'bg-success/10 text-success border border-success/20'
-                          : 'text-muted-foreground border border-border'
-                    )}
-                  >
-                    <span className={cn(
-                      'h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-bold',
-                      step === i + 1 ? 'bg-info text-white' : step > i + 1 ? 'bg-success text-white' : 'bg-border text-muted-foreground'
-                    )}>
-                      {step > i + 1 ? '✓' : i + 1}
-                    </span>
-                    {label}
-                  </button>
-                  {i < STEP_LABELS.length - 1 && (
-                    <ChevronRight className="h-3 w-3 text-muted-foreground mx-0.5" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+    <Sheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) resetForm(); }}>
+      <SheetContent side="right" className="!w-screen sm:!max-w-none overflow-y-auto p-0 bg-card border-none rounded-none">
+        <SheetHeader className="px-6 py-4 border-b border-border">
+          <SheetTitle className="text-foreground text-base font-semibold flex items-center gap-2">
+            <FileText className="h-4 w-4 text-info" />
+            Create Tax Invoice
+          </SheetTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Previous invoice: <span className="font-mono-id text-info">{getLastInvoiceNumber()}</span>
+          </p>
         </SheetHeader>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="px-6 py-4 flex items-center gap-2 border-b border-border text-xs">
+          <Button variant={step === 'header' ? 'default' : 'outline'} onClick={() => setStep('header')} className="h-8">1. Header</Button>
+          <Button variant={step === 'items' ? 'default' : 'outline'} onClick={() => setStep('items')} className="h-8">2. Items</Button>
+          <Button variant={step === 'preview' ? 'default' : 'outline'} onClick={() => setStep('preview')} className="h-8">3. Preview</Button>
+        </div>
 
-          {/* ── STEP 1: HEADER ── */}
-          {step === 1 && (
-            <div className="p-6 space-y-6 animate-fade-in-up">
-              {/* Invoice number preview */}
-              <div className="glass-card rounded-lg p-4 space-y-3">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Serial Number Logic</p>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>Previous Invoice Number:</span>
-                  <span className="font-mono-id text-info font-semibold">{lastInvNo}</span>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Invoice Number <span className="text-info">(editable)</span></Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={invoiceNumber}
-                      onChange={e => setInvoiceNumber(e.target.value)}
-                      disabled={isLocked}
-                      className="font-mono-id bg-secondary border-border text-info font-semibold tracking-wide"
-                    />
-                    <Button
-                      variant="outline" size="icon"
-                      onClick={() => setInvoiceNumber(nextInvNo)}
-                      title="Reset to auto-increment"
-                      className="border-border shrink-0"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">Auto-incremented. You may modify the suffix freely. Uniqueness validated on submit.</p>
-                </div>
+        {step === 'header' && (
+          <div className="p-6 space-y-6 max-w-4xl mx-auto">
+            {/* Invoice Metadata */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5"><Label>Invoice Number</Label><Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} /></div>
+              <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} /></div>
+              <div className="space-y-1.5"><Label>Delivery Note</Label><Input value={deliveryNote} onChange={(e) => setDeliveryNote(e.target.value)} /></div>
+              <div className="space-y-1.5">
+                <Label>Terms of Payment</Label>
+                <Select value={termsOfPayment} onValueChange={setTermsOfPayment}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{PAYMENT_TERMS.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
+              <div className="space-y-1.5"><Label>Reference No. & Date</Label><Input value={referenceNoDate} onChange={(e) => setReferenceNoDate(e.target.value)} /></div>
+              <div className="space-y-1.5"><Label>Destination</Label><Input value={destination} onChange={(e) => setDestination(e.target.value)} /></div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {/* Client */}
-                <div className="col-span-2 space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">Client <span className="text-destructive">*</span></Label>
-                  <Select value={clientId} onValueChange={setClientId} disabled={isLocked}>
-                    <SelectTrigger className="bg-secondary border-border text-foreground">
-                      <SelectValue placeholder="Select client…" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      {mockParties.map(p => (
-                        <SelectItem key={p.id} value={p.id} className="text-foreground">
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            <Separator />
+
+            {/* Seller Details */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Seller Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5"><Label>Company Name</Label><Input value={sellerCompanyName} onChange={(e) => setSellerCompanyName(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>GSTIN/UIN</Label><Input value={sellerGstin} onChange={(e) => setSellerGstin(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>Email</Label><Input value={sellerEmail} onChange={(e) => setSellerEmail(e.target.value)} /></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5"><Label>State</Label><Input value={sellerStateName} onChange={(e) => setSellerStateName(e.target.value)} /></div>
+                  <div className="space-y-1.5"><Label>State Code</Label><Input value={sellerStateCode} onChange={(e) => setSellerStateCode(e.target.value)} /></div>
                 </div>
-
-                {/* Billing Type */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">Billing Type</Label>
-                  <Select value={billingType} onValueChange={v => setBillingType(v as BillingType)} disabled={isLocked}>
-                    <SelectTrigger className="bg-secondary border-border text-foreground">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      {BILLING_TYPES.map(t => (
-                        <SelectItem key={t.value} value={t.value} className="text-foreground">{t.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Payment Terms */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">Payment Terms</Label>
-                  <Select value={paymentTerms} onValueChange={setPaymentTerms}>
-                    <SelectTrigger className="bg-secondary border-border text-foreground">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      {PAYMENT_TERMS.map(t => (
-                        <SelectItem key={t} value={t} className="text-foreground">{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Invoice Date */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">Invoice Date</Label>
-                  <Input
-                    type="date"
-                    value={invoiceDate}
-                    onChange={e => setInvoiceDate(e.target.value)}
-                    className="bg-secondary border-border text-foreground"
-                  />
-                </div>
-
-                {/* Due Date */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">Due Date <span className="text-[11px] text-muted-foreground">(auto from terms)</span></Label>
-                  <Input
-                    type="date"
-                    value={dueDate}
-                    onChange={e => setDueDate(e.target.value)}
-                    className="bg-secondary border-border text-foreground"
-                  />
-                </div>
-
-                {/* Notes */}
-                <div className="col-span-2 space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">Notes / Remarks</Label>
-                  <Textarea
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    rows={2}
-                    placeholder="Optional notes for this invoice…"
-                    className="bg-secondary border-border text-foreground resize-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)} className="border-border">Cancel</Button>
-                <Button
-                  onClick={() => setStep(2)}
-                  disabled={!clientId}
-                  className="bg-info hover:bg-info/90 text-white"
-                >
-                  Next: Line Items →
-                </Button>
+                <div className="md:col-span-2 space-y-1.5"><Label>Full Address</Label><Textarea rows={2} value={sellerAddress} onChange={(e) => setSellerAddress(e.target.value)} /></div>
               </div>
             </div>
-          )}
 
-          {/* ── STEP 2: LINE ITEMS ── */}
-          {step === 2 && (
-            <div className="p-6 animate-fade-in-up">
-              {/* Date range for auto-fetch */}
-              <div className="mb-4 p-3 glass-card rounded-lg flex items-center gap-4">
-                <span className="text-xs text-muted-foreground whitespace-nowrap">Billable Period:</span>
-                <Input
-                  type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  className="bg-secondary border-border text-foreground h-8 text-xs"
-                />
-                <span className="text-muted-foreground text-xs">→</span>
-                <Input
-                  type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  className="bg-secondary border-border text-foreground h-8 text-xs"
-                />
-                <Button size="sm" variant="outline" className="border-info/30 text-info hover:bg-info/10 text-xs shrink-0">
-                  Fetch Transactions
-                </Button>
+            <Separator />
+
+            {/* Party selector + Consignee */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Consignee (Ship To)</h3>
+              <div className="space-y-1.5">
+                <Label>Select Party (auto-fills Consignee &amp; Buyer)</Label>
+                <Select value={selectedPartyId} onValueChange={setSelectedPartyId}>
+                  <SelectTrigger><SelectValue placeholder="Select party..." /></SelectTrigger>
+                  <SelectContent>
+                    {parties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5"><Label>Company Name</Label><Input value={consigneeCompanyName} onChange={(e) => setConsigneeCompanyName(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>GSTIN/UIN</Label><Input value={consigneeGstin} onChange={(e) => setConsigneeGstin(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>State Name</Label><Input value={consigneeStateName} onChange={(e) => setConsigneeStateName(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>State Code</Label><Input value={consigneeStateCode} onChange={(e) => setConsigneeStateCode(e.target.value)} /></div>
+                <div className="md:col-span-2 space-y-1.5"><Label>Address</Label><Textarea rows={2} value={consigneeAddress} onChange={(e) => setConsigneeAddress(e.target.value)} /></div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Buyer (Bill To) — below consignee */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Buyer (Bill To)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5"><Label>Company Name</Label><Input value={buyerCompanyName} onChange={(e) => setBuyerCompanyName(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>GSTIN/UIN</Label><Input value={buyerGstin} onChange={(e) => setBuyerGstin(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>State Name</Label><Input value={buyerStateName} onChange={(e) => setBuyerStateName(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>State Code</Label><Input value={buyerStateCode} onChange={(e) => setBuyerStateCode(e.target.value)} /></div>
+                <div className="md:col-span-2 space-y-1.5"><Label>Address</Label><Textarea rows={2} value={buyerAddress} onChange={(e) => setBuyerAddress(e.target.value)} /></div>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={() => setStep('items')}>Next: Line Items</Button>
+            </div>
+          </div>
+        )}
+
+        {step === 'items' && (
+          <div className="p-6 space-y-5">
+            <div className="rounded-lg border border-border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">Sl</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="w-24">HSN/SAC</TableHead>
+                    <TableHead className="w-24">GST %</TableHead>
+                    <TableHead className="w-24">Qty</TableHead>
+                    <TableHead className="w-20">Unit</TableHead>
+                    <TableHead className="w-24">Rate</TableHead>
+                    <TableHead className="w-24 text-right">Taxable</TableHead>
+                    <TableHead className="w-24 text-right">CGST</TableHead>
+                    <TableHead className="w-24 text-right">SGST</TableHead>
+                    <TableHead className="w-24 text-right">Total</TableHead>
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {computedLineItems.map((li) => (
+                    <TableRow key={li.id}>
+                      <TableCell>{li.slNo}</TableCell>
+                      <TableCell><Input value={li.description} onChange={(e) => updateTextField(li.id, 'description', e.target.value)} placeholder="Description" /></TableCell>
+                      <TableCell><Input value={li.hsn_sac_code} onChange={(e) => updateTextField(li.id, 'hsn_sac_code', e.target.value)} /></TableCell>
+                      <TableCell><Input value={li.gst_rate} onChange={(e) => handleNumericEdit(li.id, 'gst_rate', e.target.value)} /></TableCell>
+                      <TableCell><Input value={li.quantity} onChange={(e) => handleNumericEdit(li.id, 'quantity', e.target.value)} /></TableCell>
+                      <TableCell><Input value={li.unit} onChange={(e) => updateTextField(li.id, 'unit', e.target.value.toUpperCase())} /></TableCell>
+                      <TableCell><Input value={li.rate} onChange={(e) => handleNumericEdit(li.id, 'rate', e.target.value)} /></TableCell>
+                      <TableCell className="text-right font-mono-id">{li.taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                      <TableCell className="text-right font-mono-id">{li.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                      <TableCell className="text-right font-mono-id">{li.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                      <TableCell className="text-right font-mono-id font-medium">{li.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => removeLine(li.id)} disabled={lineItems.length <= 1}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <Button variant="outline" onClick={addLine} className="text-info border-info/30">
+              <Plus className="h-4 w-4 mr-1" /> Add Line
+            </Button>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Statutory & Payment Details</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5"><Label>Bank Account Holder</Label><Input value={bankAccountHolderName} onChange={(e) => setBankAccountHolderName(e.target.value)} /></div>
+                  <div className="space-y-1.5"><Label>Bank Name</Label><Input value={bankName} onChange={(e) => setBankName(e.target.value)} /></div>
+                  <div className="space-y-1.5"><Label>Account Number</Label><Input value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} /></div>
+                  <div className="space-y-1.5"><Label>Branch & IFSC</Label><Input value={bankBranchIfsc} onChange={(e) => setBankBranchIfsc(e.target.value)} /></div>
+                  <div className="space-y-1.5"><Label>SWIFT</Label><Input value={bankSwift} onChange={(e) => setBankSwift(e.target.value)} /></div>
+                  <div className="space-y-1.5"><Label>Company PAN</Label><Input value={companyPan} onChange={(e) => setCompanyPan(e.target.value)} /></div>
+                </div>
+                <div className="space-y-1.5"><Label>Remarks / Notes</Label><Textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>Declaration Text</Label><Textarea rows={2} value={declarationText} onChange={(e) => setDeclarationText(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>Authorized Signatory</Label><Input value={authorizedSignatory} onChange={(e) => setAuthorizedSignatory(e.target.value)} /></div>
               </div>
 
-              <div className="flex gap-4">
-                {/* Line Items Table */}
-                <div className="flex-1 min-w-0">
-                  <div className="rounded-lg border border-white/10 overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-white/10 hover:bg-transparent">
-                          <TableHead className="text-muted-foreground text-xs">Description</TableHead>
-                          <TableHead className="text-muted-foreground text-xs text-right w-24">Qty / Kg</TableHead>
-                          <TableHead className="text-muted-foreground text-xs text-right w-24">Rate (₹)</TableHead>
-                          <TableHead className="text-muted-foreground text-xs text-right w-28">Amount (₹)</TableHead>
-                          <TableHead className="w-8" />
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {lineItems.map((li, idx) => (
-                          <TableRow key={li.id} className="border-white/10 hover:bg-white/[0.03]">
-                            <TableCell className="py-2">
-                              <Input
-                                value={li.description}
-                                onChange={e => updateLineItem(li.id, 'description', e.target.value)}
-                                disabled={isLocked}
-                                placeholder={`Line item ${idx + 1}…`}
-                                className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 h-7 text-sm text-foreground focus-visible:ring-0 focus-visible:border-info"
-                              />
-                            </TableCell>
-                            <TableCell className="py-2">
-                              <Input
-                                type="number"
-                                value={li.quantity}
-                                onChange={e => updateLineItem(li.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                disabled={isLocked}
-                                className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 h-7 text-sm text-right text-foreground focus-visible:ring-0 focus-visible:border-info"
-                              />
-                            </TableCell>
-                            <TableCell className="py-2">
-                              <Input
-                                type="number"
-                                value={li.rate}
-                                onChange={e => updateLineItem(li.id, 'rate', parseFloat(e.target.value) || 0)}
-                                disabled={isLocked}
-                                className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 h-7 text-sm text-right text-foreground focus-visible:ring-0 focus-visible:border-info"
-                              />
-                            </TableCell>
-                            <TableCell className="py-2 text-right">
-                              <span className="text-sm font-medium text-foreground font-mono-id">
-                                {li.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            </TableCell>
-                            <TableCell className="py-2">
-                              {!isLocked && lineItems.length > 1 && (
-                                <Button
-                                  variant="ghost" size="icon"
-                                  onClick={() => removeLineItem(li.id)}
-                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+              <div className="rounded-lg border border-border p-4 space-y-2 h-fit">
+                <h3 className="text-sm font-semibold">Auto Calculation</h3>
+                <div className="flex justify-between text-sm"><span>Total Quantity</span><span className="font-mono-id">{totals.totalQuantity.toLocaleString('en-IN', { maximumFractionDigits: 3 })}</span></div>
+                <div className="flex justify-between text-sm"><span>Total Taxable Value</span><span className="font-mono-id">{totals.totalTaxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between text-sm"><span>CGST</span><span className="font-mono-id">{totals.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between text-sm"><span>SGST/UTGST</span><span className="font-mono-id">{totals.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                <div className="space-y-1.5 pt-2"><Label>Round Off (+/-)</Label><Input value={roundOffInput} onChange={(e) => { if (e.target.value === '' || /^-?\d*(\.\d{0,2})?$/.test(e.target.value)) setRoundOffInput(e.target.value); }} /></div>
+                <Separator />
+                <div className="flex justify-between text-base font-semibold"><span>Total Invoice Amount</span><span className="font-mono-id text-info">{totals.totalInvoiceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                <p className="text-xs text-muted-foreground">{totals.totalInvoiceAmountWords}</p>
+              </div>
+            </div>
 
-                  {!isLocked && (
-                    <Button
-                      variant="ghost" size="sm"
-                      onClick={addLineItem}
-                      className="mt-2 text-info hover:text-info hover:bg-info/10 text-xs"
-                    >
-                      <Plus className="h-3 w-3 mr-1" /> Add Line Item
-                    </Button>
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep('header')}>Back</Button>
+              <Button onClick={() => setStep('preview')}>Next: Preview</Button>
+            </div>
+          </div>
+        )}
+
+        {step === 'preview' && (
+          <div className="p-6 space-y-5">
+            {/* ── Authentic Tax Invoice Document ── */}
+            <div
+              style={{
+                fontFamily: 'Arial, Helvetica, sans-serif',
+                fontSize: '11px',
+                color: '#000',
+                background: '#fff',
+                border: '1px solid #000',
+                width: '100%',
+                maxWidth: '900px',
+                margin: '0 auto',
+              }}
+            >
+              {/* Title */}
+              <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '15px', padding: '6px 8px', borderBottom: '1px solid #000', letterSpacing: '1px' }}>
+                Tax Invoice
+              </div>
+
+              {/* Company branding (left) + Invoice Meta (right) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #000' }}>
+                <div style={{ padding: '8px', borderRight: '1px solid #000' }}>
+                  <p style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '3px' }}>{sellerCompanyName}</p>
+                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{sellerAddress}</p>
+                  <p style={{ marginTop: '4px' }}>GSTIN/UIN: <strong>{sellerGstin}</strong></p>
+                  <p>State Name: {sellerStateName}, <strong>Code: {sellerStateCode}</strong></p>
+                  {sellerEmail && <p>E-Mail: {sellerEmail}</p>}
+                  {companyPan && <p>PAN No.: {companyPan}</p>}
+                </div>
+                <div style={{ padding: '8px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', fontWeight: 600, width: '45%' }}>Invoice No.</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', fontWeight: 600 }}>{invoiceNumber}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', fontWeight: 600 }}>Dated</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px' }}>{invoiceDate}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', fontWeight: 600 }}>Delivery Note</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px' }}>{deliveryNote || ''}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', fontWeight: 600 }}>Mode/Terms of Payment</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px' }}>{termsOfPayment || ''}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', fontWeight: 600 }}>Reference No. &amp; Date</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px' }}>{referenceNoDate || ''}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', fontWeight: 600 }}>Dispatched through</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px' }}>{destination || ''}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Consignee (left) + Buyer (right) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #000' }}>
+                <div style={{ padding: '8px', borderRight: '1px solid #000' }}>
+                  <p style={{ fontWeight: 600, marginBottom: '3px', textDecoration: 'underline' }}>Consignee (Ship to)</p>
+                  <p style={{ fontWeight: 'bold' }}>{consigneeCompanyName || '-'}</p>
+                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{consigneeAddress}</p>
+                  {consigneeGstin && <p>GSTIN/UIN: {consigneeGstin}</p>}
+                  {consigneeStateName && (
+                    <p>State Name: {consigneeStateName}{consigneeStateCode ? `, Code: ${consigneeStateCode}` : ''}</p>
                   )}
                 </div>
-
-                {/* Floating Calculation Summary */}
-                <div className="w-56 shrink-0">
-                  <div className="glass-card rounded-lg p-4 space-y-3 sticky top-4 billing-blue-glow border border-info/15">
-                    <p className="text-xs font-semibold text-info uppercase tracking-wider">Summary</p>
-                    <Separator className="bg-white/10" />
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Subtotal</span>
-                        <span className="font-mono-id text-foreground">₹{subtotal.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>GST ({mockBillingSettings.gstPercent}%)</span>
-                        <span className="font-mono-id text-foreground">₹{gstAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                      {roundOff !== 0 && (
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>Round Off</span>
-                          <span className="font-mono-id text-foreground">{roundOff > 0 ? '+' : ''}₹{roundOff.toFixed(2)}</span>
-                        </div>
-                      )}
-                      <Separator className="bg-white/10" />
-                      <div className="flex justify-between font-semibold">
-                        <span className="text-foreground">Grand Total</span>
-                        <span className="font-mono-id text-info text-base">₹{grandTotal.toLocaleString('en-IN')}</span>
-                      </div>
-                    </div>
-
-                    {lineItems.some(li => !li.description.trim()) && (
-                      <div className="flex gap-1.5 items-start text-xs text-warning/80 pt-1">
-                        <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
-                        <span>Fill all descriptions before generating.</span>
-                      </div>
-                    )}
-                  </div>
+                <div style={{ padding: '8px' }}>
+                  <p style={{ fontWeight: 600, marginBottom: '3px', textDecoration: 'underline' }}>Buyer (Bill to)</p>
+                  <p style={{ fontWeight: 'bold' }}>{buyerCompanyName || '-'}</p>
+                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{buyerAddress}</p>
+                  {buyerGstin && <p>GSTIN/UIN: {buyerGstin}</p>}
+                  {buyerStateName && (
+                    <p>State Name: {buyerStateName}{buyerStateCode ? `, Code: ${buyerStateCode}` : ''}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="flex justify-between mt-5">
-                <Button variant="outline" onClick={() => setStep(1)} className="border-border">← Back</Button>
-                <Button onClick={() => setStep(3)} className="bg-info hover:bg-info/90 text-white">
-                  Next: Review →
-                </Button>
-              </div>
-            </div>
-          )}
+              {/* Main Service Table */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: '1px solid #000' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f0f0f0' }}>
+                    <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', width: '32px' }}>Sl No.</th>
+                    <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'left' }}>Description of Services</th>
+                    <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', width: '64px' }}>HSN/SAC</th>
+                    <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', width: '58px' }}>GST Rate</th>
+                    <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', width: '72px' }}>Quantity</th>
+                    <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', width: '80px' }}>Rate</th>
+                    <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', width: '42px' }}>Per</th>
+                    <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', width: '90px' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {computedLineItems.map((li) => (
+                    <tr key={li.id}>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>{li.slNo}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{li.description}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>{li.hsn_sac_code || ''}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>{li.gstRate}%</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>
+                        {li.quantity.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
+                      </td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>{fmt2(li.rate)}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>{li.unit}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>{fmt2(li.taxableAmount)}</td>
+                    </tr>
+                  ))}
+                  {/* CGST / SGST sub-rows per HSN+rate group */}
+                  {taxGroups.flatMap((g) => [
+                    <tr key={`cgst-${g.hsnSac}-${g.rate}`}>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>CGST@{g.rate / 2}%</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>{fmt2(g.cgst)}</td>
+                    </tr>,
+                    <tr key={`sgst-${g.hsnSac}-${g.rate}`}>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>SGST@{g.rate / 2}%</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>{fmt2(g.sgst)}</td>
+                    </tr>,
+                  ])}
+                  {/* Rounding Off */}
+                  {totals.roundOff !== 0 && (
+                    <tr>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Rounding Off</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>
+                        {totals.roundOff > 0 ? '+' : ''}{fmt2(totals.roundOff)}
+                      </td>
+                    </tr>
+                  )}
+                  {/* Totals row */}
+                  <tr style={{ borderTop: '2px solid #000' }}>
+                    <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                    <td style={{ border: '1px solid #000', padding: '4px 6px', fontWeight: 'bold' }}>Total</td>
+                    <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                    <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                    <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>
+                      {totals.totalQuantity.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
+                    </td>
+                    <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                    <td style={{ border: '1px solid #000', padding: '4px 6px' }} />
+                    <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>
+                      &#8377;{fmt2(totals.totalInvoiceAmount)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-          {/* ── STEP 3: REVIEW ── */}
-          {step === 3 && (
-            <div className="p-6 space-y-5 animate-fade-in-up">
-              <div className="glass-card rounded-lg p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Invoice Number</p>
-                    <p className="font-mono-id font-bold text-info text-lg">{invoiceNumber}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Client</p>
-                    <p className="font-semibold text-foreground">{clientName || '—'}</p>
-                  </div>
-                </div>
-                <Separator className="bg-white/10" />
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Invoice Date</p>
-                    <p className="text-foreground">{invoiceDate}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Due Date</p>
-                    <p className="text-foreground">{dueDate}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Billing Type</p>
-                    <p className="text-foreground capitalize">{billingType}</p>
-                  </div>
-                </div>
+              {/* Amount chargeable in words */}
+              <div style={{ padding: '6px 8px', borderBottom: '1px solid #000', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span>
+                  <strong>Amount Chargeable (in words):&nbsp;</strong>
+                  <em>{totals.totalInvoiceAmountWords}</em>
+                </span>
+                <span style={{ fontWeight: 600, whiteSpace: 'nowrap', marginLeft: '8px' }}>E. &amp; O.E</span>
               </div>
 
-              {/* Line Items Preview */}
-              <div className="rounded-lg border border-white/10 overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/10 hover:bg-transparent">
-                      <TableHead className="text-muted-foreground text-xs">Description</TableHead>
-                      <TableHead className="text-muted-foreground text-xs text-right">Qty</TableHead>
-                      <TableHead className="text-muted-foreground text-xs text-right">Rate</TableHead>
-                      <TableHead className="text-muted-foreground text-xs text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lineItems.map(li => (
-                      <TableRow key={li.id} className="border-white/10">
-                        <TableCell className="text-sm text-foreground">{li.description}</TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">{li.quantity.toLocaleString('en-IN')}</TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">₹{li.rate.toLocaleString('en-IN')}</TableCell>
-                        <TableCell className="text-right text-sm font-medium text-foreground font-mono-id">₹{li.amount.toLocaleString('en-IN')}</TableCell>
-                      </TableRow>
+              {/* Tax Analysis Table */}
+              <div style={{ padding: '6px 8px', borderBottom: '1px solid #000' }}>
+                <p style={{ fontWeight: 700, marginBottom: '4px' }}>Tax Analysis</p>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f0f0f0' }}>
+                      <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'left' }}>HSN/SAC</th>
+                      <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>Taxable Value</th>
+                      <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>Central Tax Rate</th>
+                      <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>Central Tax Amt</th>
+                      <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>State Tax Rate</th>
+                      <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>State Tax Amt</th>
+                      <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>Total Tax Amt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {taxGroups.map((g) => (
+                      <tr key={`taxrow-${g.hsnSac}-${g.rate}`}>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px' }}>{g.hsnSac}</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{fmt2(g.taxableValue)}</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{g.rate / 2}%</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{fmt2(g.cgst)}</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{g.rate / 2}%</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{fmt2(g.sgst)}</td>
+                        <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{fmt2(g.cgst + g.sgst)}</td>
+                      </tr>
                     ))}
-                  </TableBody>
-                </Table>
+                    <tr style={{ fontWeight: 'bold' }}>
+                      <td style={{ border: '1px solid #000', padding: '3px 6px' }}>Total</td>
+                      <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{fmt2(totals.totalTaxableValue)}</td>
+                      <td style={{ border: '1px solid #000', padding: '3px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{fmt2(totals.cgstAmount)}</td>
+                      <td style={{ border: '1px solid #000', padding: '3px 6px' }} />
+                      <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{fmt2(totals.sgstAmount)}</td>
+                      <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right' }}>{fmt2(totals.cgstAmount + totals.sgstAmount)}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
-              {/* Totals */}
-              <div className="glass-card rounded-lg p-4 max-w-xs ml-auto space-y-2 text-sm">
-                <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span className="font-mono-id">₹{subtotal.toLocaleString('en-IN')}</span></div>
-                <div className="flex justify-between text-muted-foreground"><span>GST ({mockBillingSettings.gstPercent}%)</span><span className="font-mono-id">₹{gstAmount.toLocaleString('en-IN')}</span></div>
-                {roundOff !== 0 && <div className="flex justify-between text-muted-foreground"><span>Round Off</span><span className="font-mono-id">{roundOff > 0 ? '+' : ''}₹{roundOff.toFixed(2)}</span></div>}
-                <Separator className="bg-white/10" />
-                <div className="flex justify-between font-bold text-base"><span className="text-foreground">Grand Total</span><span className="font-mono-id text-info">₹{grandTotal.toLocaleString('en-IN')}</span></div>
+              {/* Tax amount in words */}
+              <div style={{ padding: '6px 8px', borderBottom: '1px solid #000' }}>
+                <strong>Tax Amount (in words):&nbsp;</strong>
+                <em>{totals.taxAmountWords}</em>
               </div>
 
-              {/* Draft note */}
-              <div className="flex gap-2 text-xs text-muted-foreground bg-warning/5 border border-warning/15 rounded-md p-3">
-                <AlertCircle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-warning font-medium">Draft mode:</span> All fields remain editable.{' '}
-                  <span className="text-info font-medium">Generate</span> will lock the invoice number and line items.
+              {/* Bank Details + Declaration + Authorised Signatory */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                <div style={{ padding: '8px', borderRight: '1px solid #000' }}>
+                  <p style={{ fontWeight: 700, marginBottom: '5px' }}>Company's Bank Details</p>
+                  <p>A/c Holder Name: <strong>{bankAccountHolderName}</strong></p>
+                  <p>Bank Name: {bankName}</p>
+                  <p>A/c No.: <strong>{bankAccountNumber}</strong></p>
+                  <p>Branch &amp; IFSC Code: {bankBranchIfsc}</p>
+                  {bankSwift && <p>SWIFT: {bankSwift}</p>}
+                  {remarks && (
+                    <p style={{ marginTop: '6px' }}><strong>Remarks:</strong> {remarks}</p>
+                  )}
+                  {declarationText && (
+                    <p style={{ marginTop: '8px', fontSize: '10px', color: '#444', lineHeight: 1.4 }}>
+                      {declarationText}
+                    </p>
+                  )}
+                </div>
+                <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '110px' }}>
+                  <p style={{ textAlign: 'right', fontWeight: 700 }}>for {sellerCompanyName}</p>
+                  <div style={{ textAlign: 'right', marginTop: '40px' }}>
+                    <div style={{ display: 'inline-block', borderTop: '1px solid #000', paddingTop: '4px', minWidth: '140px' }}>
+                      <p style={{ fontWeight: 600 }}>{authorizedSignatory}</p>
+                      <p style={{ fontSize: '10px' }}>Authorised Signatory</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex justify-between pt-1">
-                <Button variant="outline" onClick={() => setStep(2)} className="border-border">← Back</Button>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleSaveDraft}
-                    className="border-warning/30 text-warning hover:bg-warning/10"
-                  >
-                    Save as Draft
-                  </Button>
-                  <Button
-                    onClick={handleGenerate}
-                    className="bg-info hover:bg-info/90 text-white"
-                    disabled={lineItems.some(li => !li.description.trim()) || !clientId}
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                    Generate Invoice
-                  </Button>
-                </div>
+              {/* Footer */}
+              <div style={{ textAlign: 'center', padding: '5px 8px', borderTop: '1px solid #000', fontSize: '10px', color: '#333' }}>
+                This is a Computer Generated Invoice
               </div>
             </div>
-          )}
-        </div>
+
+            <div className="flex justify-between max-w-[900px] mx-auto">
+              <Button variant="outline" onClick={() => setStep('items')}>Back</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => submit(true)} disabled={isSaving}>Save Draft</Button>
+                <Button onClick={() => submit(false)} disabled={isSaving}>{isSaving ? 'Saving...' : 'Save & Generate'}</Button>
+              </div>
+            </div>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );

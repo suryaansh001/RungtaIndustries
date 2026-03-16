@@ -45,6 +45,7 @@ app.use('/api/v1/packets',      require('./src/routes/packets'));
 app.use('/api/v1/transfers',    require('./src/routes/transfers'));
 app.use('/api/v1/pricing',      require('./src/routes/pricing'));
 app.use('/api/v1/transactions', require('./src/routes/transactions'));
+app.use('/api/v1/invoices',     require('./src/routes/invoices'));
 app.use('/api/v1/reports',      require('./src/routes/reports'));
 app.use('/api/v1/settings',     require('./src/routes/settings'));
 app.use('/api/v1/export',       require('./src/routes/export'));

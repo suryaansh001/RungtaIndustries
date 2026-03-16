@@ -85,6 +85,16 @@ enum TransferStatus {
   reversed
 }
 
+enum InvoiceStatus {
+  DRAFT
+  GENERATED
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -99,6 +109,7 @@ model User {
   updated_at    DateTime  @updatedAt
 
   activity_logs ActivityLog[]
+  invoices      Invoice[]
 }
 
 model Party {
@@ -121,6 +132,96 @@ model Party {
   from_transfers   TransferOrder[] @relation("FromParty")
   to_transfers     TransferOrder[] @relation("ToParty")
   transactions     Transaction[]
+  invoices         Invoice[]
+}
+
+model Invoice {
+  id                         String        @id @default(uuid())
+  invoice_number             String        @unique
+  party_id                   String?
+  party                      Party?        @relation(fields: [party_id], references: [id])
+  invoice_date               DateTime      @db.Date
+  delivery_note              String?
+  terms_of_payment           String?
+  reference_no_date          String?
+  destination                String?
+
+  seller_company_name        String
+  seller_full_address        String?
+  seller_gstin_uin           String?
+  seller_state_name          String?
+  seller_state_code          String?
+  seller_email               String?
+
+  consignee_company_name     String?
+  consignee_address          String?
+  consignee_gstin_uin        String?
+  consignee_state_name       String?
+  consignee_state_code       String?
+
+  buyer_company_name         String
+  buyer_address              String?
+  buyer_gstin_uin            String?
+  buyer_state_name           String?
+  buyer_state_code           String?
+
+  subtotal                   Decimal       @default(0) @db.Decimal(12, 2)
+  cgst_amount                Decimal       @default(0) @db.Decimal(12, 2)
+  sgst_utgst_amount          Decimal       @default(0) @db.Decimal(12, 2)
+  igst_amount                Decimal       @default(0) @db.Decimal(12, 2)
+  round_off                  Decimal       @default(0) @db.Decimal(12, 2)
+  total_quantity             Decimal       @default(0) @db.Decimal(12, 3)
+  total_taxable_value        Decimal       @default(0) @db.Decimal(12, 2)
+  total_invoice_amount       Decimal       @default(0) @db.Decimal(12, 2)
+  total_invoice_amount_words String?
+
+  tax_analysis_rows          Json?
+
+  bank_account_holder_name   String?
+  bank_name                  String?
+  bank_account_number        String?
+  bank_branch_ifsc_code      String?
+  bank_swift_code            String?
+
+  company_pan                String?
+  remarks                    String?
+  declaration_text           String?
+  authorized_signatory       String?
+  is_computer_generated      Boolean       @default(true)
+
+  status                     InvoiceStatus @default(DRAFT)
+  created_by                 String?
+  created_by_user            User?         @relation(fields: [created_by], references: [id])
+  created_at                 DateTime      @default(now())
+  updated_at                 DateTime      @updatedAt
+
+  line_items                 InvoiceLineItem[]
+
+  @@index([party_id])
+  @@index([invoice_date])
+  @@index([status])
+}
+
+model InvoiceLineItem {
+  id              String   @id @default(uuid())
+  invoice_id      String
+  invoice         Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  sl_no           Int
+  description     String
+  hsn_sac_code    String?
+  gst_rate        Decimal  @default(0) @db.Decimal(5, 2)
+  quantity        Decimal  @default(0) @db.Decimal(12, 3)
+  unit            String   @default("TON")
+  rate            Decimal  @default(0) @db.Decimal(12, 2)
+  taxable_amount  Decimal  @default(0) @db.Decimal(12, 2)
+  cgst_amount     Decimal  @default(0) @db.Decimal(12, 2)
+  sgst_utgst_amt  Decimal  @default(0) @db.Decimal(12, 2)
+  igst_amount     Decimal  @default(0) @db.Decimal(12, 2)
+  total_amount    Decimal  @default(0) @db.Decimal(12, 2)
+  created_at      DateTime @default(now())
+
+  @@index([invoice_id])
+  @@index([hsn_sac_code])
 }
 
 model PricingConfig {

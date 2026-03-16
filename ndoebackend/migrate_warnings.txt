@@ -1,0 +1,347 @@
+Party only in Data Entry (not in Party Master): 'PS STEEL'
+Party only in Data Entry (not in Party Master): 'SHUBH AVAY & COMPANY'
+Pkt-In row 3127: no weight for packet 2506P0137
+JW row 5203: coil '2506C0598' has no Coil-In record — orphan
+JW row 5204: coil '2506C0599' has no Coil-In record — orphan
+JW row 5205: coil '2506C0602' has no Coil-In record — orphan
+JW row 5206: coil '2506C0603' has no Coil-In record — orphan
+JW row 5207: coil '2506C0591' has no Coil-In record — orphan
+JW row 5209: coil '2506C0600' has no Coil-In record — orphan
+JW row 5210: coil '2506C0600' has no Coil-In record — orphan
+JW row 6031: coil '2506C0759' has no Coil-In record — orphan
+JW row 6032: coil '2506C0760' has no Coil-In record — orphan
+JW row 6033: coil '2506C0740' has no Coil-In record — orphan
+JW row 6762: coil '2506C0877' has no Coil-In record — orphan
+JW row 6764: coil '2506C0701' has no Coil-In record — orphan
+JW row 7517: coil '2506C1026' has no Coil-In record — orphan
+JW row 7518: coil '2506C0975' has no Coil-In record — orphan
+JW row 7519: coil '2506C0979' has no Coil-In record — orphan
+JW row 7520: coil '2506C1005' has no Coil-In record — orphan
+JW row 7521: coil '2506C1005' has no Coil-In record — orphan
+JW row 7522: coil '2506C1027' has no Coil-In record — orphan
+JW row 8537: coil '2506C1205' has no Coil-In record — orphan
+JW row 8538: coil '2506C1206' has no Coil-In record — orphan
+JW row 8539: coil '2506C1207' has no Coil-In record — orphan
+JW row 8540: coil '2506C1191' has no Coil-In record — orphan
+JW row 4351: coil '2506C0390' has no Coil-In record — orphan
+JW row 4352: coil '2506C0390' has no Coil-In record — orphan
+JW row 5213: coil '2506C0588' has no Coil-In record — orphan
+JW row 5216: coil '2506C0572' has no Coil-In record — orphan
+JW row 5219: coil '2506C0594' has no Coil-In record — orphan
+JW row 6038: coil '2506C0734' has no Coil-In record — orphan
+JW row 6041: coil '2506C0596' has no Coil-In record — orphan
+JW row 8541: coil '2506C1196' has no Coil-In record — orphan
+JW row 8542: coil '2506C0840' has no Coil-In record — orphan
+JW row 8543: coil '2506C1203' has no Coil-In record — orphan
+JW row 8544: coil '2506C1204' has no Coil-In record — orphan
+JW row 4355: coil '2506C0418' has no Coil-In record — orphan
+JW row 4356: coil '2506C0441' has no Coil-In record — orphan
+JW row 6046: coil '2506C0746' has no Coil-In record — orphan
+JW row 6770: coil '2506C0546' has no Coil-In record — orphan
+JW row 7525: coil '2506C1033' has no Coil-In record — orphan
+JW row 7526: coil '2506C1009' has no Coil-In record — orphan
+JW row 7528: coil '2506C1032' has no Coil-In record — orphan
+JW row 8548: coil '2506C1202' has no Coil-In record — orphan
+JW row 8551: coil '2506C1171' has no Coil-In record — orphan
+JW row 8552: coil '2506C1136' has no Coil-In record — orphan
+JW row 4357: coil '2506C0450' has no Coil-In record — orphan
+JW row 5227: coil '2506C0393' has no Coil-In record — orphan
+JW row 6775: coil '2506C0892' has no Coil-In record — orphan
+JW row 6776: coil '2506C0891' has no Coil-In record — orphan
+JW row 6777: coil '2506C0828' has no Coil-In record — orphan
+JW row 7529: coil '2506C1023' has no Coil-In record — orphan
+JW row 7530: coil '2506C0980' has no Coil-In record — orphan
+JW row 7531: coil '2506C1025' has no Coil-In record — orphan
+JW row 7532: coil '2506C1017' has no Coil-In record — orphan
+JW row 7534: coil '2506C1024' has no Coil-In record — orphan
+JW row 7535: coil '2506C1031' has no Coil-In record — orphan
+JW row 7537: coil '2506C0984' has no Coil-In record — orphan
+JW row 7538: coil '2506C0902' has no Coil-In record — orphan
+JW row 8554: coil '2506C1105' has no Coil-In record — orphan
+JW row 8555: coil '2506C1111' has no Coil-In record — orphan
+JW row 8556: coil '2506C1111' has no Coil-In record — orphan
+JW row 8557: coil '2506C1146' has no Coil-In record — orphan
+JW row 8558: coil '2506C1184' has no Coil-In record — orphan
+JW row 8559: coil '2506C1184' has no Coil-In record — orphan
+JW row 8560: coil '2506C1185' has no Coil-In record — orphan
+JW row 8561: coil '2506C1185' has no Coil-In record — orphan
+JW row 8563: coil '2506C1209' has no Coil-In record — orphan
+JW row 4364: coil '2506C0451' has no Coil-In record — orphan
+JW row 4365: coil '2506C0451' has no Coil-In record — orphan
+JW row 5234: coil '2506C0542' has no Coil-In record — orphan
+JW row 6055: coil '2506C0579' has no Coil-In record — orphan
+JW row 6056: coil '2506C0521' has no Coil-In record — orphan
+JW row 7540: coil '2506C1035' has no Coil-In record — orphan
+JW row 8565: coil '2506C1109' has no Coil-In record — orphan
+JW row 8566: coil '2506C1133' has no Coil-In record — orphan
+JW row 8567: coil '2506C1172' has no Coil-In record — orphan
+JW row 8569: coil '2506C1166' has no Coil-In record — orphan
+JW row 5238: coil '2506C0552' has no Coil-In record — orphan
+JW row 5240: coil '2506C0582' has no Coil-In record — orphan
+JW row 5241: coil '2506C0597' has no Coil-In record — orphan
+JW row 5242: coil '2506C0581' has no Coil-In record — orphan
+JW row 6064: coil '2506C0758' has no Coil-In record — orphan
+JW row 6065: coil '2506C0742' has no Coil-In record — orphan
+JW row 6066: coil '2506C0742' has no Coil-In record — orphan
+JW row 6780: coil '2506C0898' has no Coil-In record — orphan
+JW row 6781: coil '2506C0907' has no Coil-In record — orphan
+JW row 6782: coil '2506C0909' has no Coil-In record — orphan
+JW row 6784: coil '2506C0883' has no Coil-In record — orphan
+JW row 6785: coil '2506C0876' has no Coil-In record — orphan
+JW row 8579: coil '2506C1180' has no Coil-In record — orphan
+JW row 4373: coil '2506C0395' has no Coil-In record — orphan
+JW row 6186: coil '2506C0395' has no Coil-In record — orphan
+JW row 5249: coil '2506C0590' has no Coil-In record — orphan
+JW row 6791: coil '2506C0897' has no Coil-In record — orphan
+JW row 6792: coil '2506C0834' has no Coil-In record — orphan
+JW row 6793: coil '2506C0905' has no Coil-In record — orphan
+JW row 6797: coil '2506C0871' has no Coil-In record — orphan
+JW row 7552: coil '2506C0880' has no Coil-In record — orphan
+JW row 7557: coil '2506C1000' has no Coil-In record — orphan
+JW row 5256: coil '2506C0514' has no Coil-In record — orphan
+JW row 5257: coil '2506C0586' has no Coil-In record — orphan
+JW row 5258: coil '2506C0583' has no Coil-In record — orphan
+JW row 6073: coil '2506C0720' has no Coil-In record — orphan
+JW row 6799: coil '2506C0881' has no Coil-In record — orphan
+JW row 6800: coil '2506C0687' has no Coil-In record — orphan
+JW row 7559: coil '2506C0998' has no Coil-In record — orphan
+JW row 7560: coil '2506C0998' has no Coil-In record — orphan
+JW row 7562: coil '2506C0508' has no Coil-In record — orphan
+JW row 8583: coil '2506C1199' has no Coil-In record — orphan
+JW row 6803: coil '2506C0888' has no Coil-In record — orphan
+JW row 6805: coil '2506C0906' has no Coil-In record — orphan
+JW row 8591: coil '2506C0851' has no Coil-In record — orphan
+JW row 8593: coil '2506C1142' has no Coil-In record — orphan
+JW row 4389: coil '2506C0423' has no Coil-In record — orphan
+JW row 6812: coil '2506C0698' has no Coil-In record — orphan
+JW row 6813: coil '2506C0887' has no Coil-In record — orphan
+JW row 8601: coil '2506C1208' has no Coil-In record — orphan
+JW row 8602: coil '2506C1161' has no Coil-In record — orphan
+JW row 6815: coil '2506C0884' has no Coil-In record — orphan
+JW row 7574: coil '2506C0564' has no Coil-In record — orphan
+JW row 7575: coil '2506C0838' has no Coil-In record — orphan
+JW row 7579: coil '2506C0984' has no Coil-In record — orphan
+JW row 5261: coil '2506C0558' has no Coil-In record — orphan
+JW row 5262: coil '2506C0558' has no Coil-In record — orphan
+JW row 6092: coil '2506C0592' has no Coil-In record — orphan
+JW row 7582: coil '2506C0872' has no Coil-In record — orphan
+JW row 8610: coil '2506C0838' has no Coil-In record — orphan
+Transfer-Out has no matching Transfer-In: num=2406C0343 date=2025-04-24
+Dispatch row 4516: '2506C0380' not in coil/packet map
+Dispatch row 4517: '2506C0448' not in coil/packet map
+Dispatch row 4518: '2506C0449' not in coil/packet map
+Dispatch row 4519: '2506C0449' not in coil/packet map
+Dispatch row 4539: '2506C0387' not in coil/packet map
+Dispatch row 4540: '2506C0390' not in coil/packet map
+Dispatch row 4541: '2506C0390' not in coil/packet map
+Dispatch row 4544: '2506C0441' not in coil/packet map
+Dispatch row 4546: '2506C0396' not in coil/packet map
+Dispatch row 4547: '2506C0450' not in coil/packet map
+Dispatch row 4555: '2506C0418' not in coil/packet map
+Dispatch row 4561: '2506C0451' not in coil/packet map
+Dispatch row 4576: '2506C0395' not in coil/packet map
+Dispatch row 4581: '2506C0451' not in coil/packet map
+Dispatch row 4585: '2506C0424' not in coil/packet map
+Dispatch row 4587: '2506C0395' not in coil/packet map
+Dispatch row 4594: '2506C0396' not in coil/packet map
+Dispatch row 4601: '2506C0397' not in coil/packet map
+Dispatch row 5357: '2506C0575' not in coil/packet map
+Dispatch row 5360: '2506C0598' not in coil/packet map
+Dispatch row 5361: '2506C0599' not in coil/packet map
+Dispatch row 5362: '2506C0603' not in coil/packet map
+Dispatch row 5363: '2506C0576' not in coil/packet map
+Dispatch row 5364: '2506C0591' not in coil/packet map
+Dispatch row 5366: '2506C0438' not in coil/packet map
+Dispatch row 5372: '2506C0601' not in coil/packet map
+Dispatch row 5374: '2506C0603' not in coil/packet map
+Dispatch row 5375: '2506C0602' not in coil/packet map
+Dispatch row 5377: '2506C0598' not in coil/packet map
+Dispatch row 5379: '2506C0599' not in coil/packet map
+Dispatch row 5381: '2506C0587' not in coil/packet map
+Dispatch row 5382: '2506C0587' not in coil/packet map
+Dispatch row 5383: '2506C0572' not in coil/packet map
+Dispatch row 5387: '2506C0594' not in coil/packet map
+Dispatch row 5388: '2506C0560' not in coil/packet map
+Dispatch row 5392: '2506C0588' not in coil/packet map
+Dispatch row 5396: '2506C0541' not in coil/packet map
+Dispatch row 5410: '2506C0587' not in coil/packet map
+Dispatch row 5414: '2506C0600' not in coil/packet map
+Dispatch row 5415: '2506C0600' not in coil/packet map
+Dispatch row 5416: '2506C0600' not in coil/packet map
+Dispatch row 5433: '2506C0542' not in coil/packet map
+Dispatch row 5438: '2506C0582' not in coil/packet map
+Dispatch row 5440: '2506C0581' not in coil/packet map
+Dispatch row 5442: '2506C0597' not in coil/packet map
+Dispatch row 5445: '2506C0393' not in coil/packet map
+Dispatch row 5458: '2506C0590' not in coil/packet map
+Dispatch row 5468: '2506C0552' not in coil/packet map
+Dispatch row 5478: '2506C0514' not in coil/packet map
+Dispatch row 5486: '2506C0586' not in coil/packet map
+Dispatch row 5494: '2506C0583' not in coil/packet map
+Dispatch row 5495: '2506C0567' not in coil/packet map
+Dispatch row 6187: '2506C0755' not in coil/packet map
+Dispatch row 6188: '2506C0754' not in coil/packet map
+Dispatch row 6189: '2506C0686' not in coil/packet map
+Dispatch row 6190: '2506C0759' not in coil/packet map
+Dispatch row 6191: '2506C0757' not in coil/packet map
+Dispatch row 6196: '2506C0686' not in coil/packet map
+Dispatch row 6197: '2506C0760' not in coil/packet map
+Dispatch row 6201: '2506C0686' not in coil/packet map
+Dispatch row 6207: '2506C0740' not in coil/packet map
+Dispatch row 6220: '2506C0596' not in coil/packet map
+Dispatch row 6222: '2506C0734' not in coil/packet map
+Dispatch row 6224: '2506C0746' not in coil/packet map
+Dispatch row 6232: '2506C0596' not in coil/packet map
+Dispatch row 6233: '2506C0734' not in coil/packet map
+Dispatch row 6234: '2506C0579' not in coil/packet map
+Dispatch row 6242: '2506C0734' not in coil/packet map
+Dispatch row 6249: '2506C0521' not in coil/packet map
+Dispatch row 6259: '2506C0758' not in coil/packet map
+Dispatch row 6261: '2506C0720' not in coil/packet map
+Dispatch row 6262: '2506C0720' not in coil/packet map
+Dispatch row 6264: '2506C0742' not in coil/packet map
+Dispatch row 6279: '2506C0509' not in coil/packet map
+Dispatch row 6283: '2506C0596' not in coil/packet map
+Dispatch row 6284: '2506C0742' not in coil/packet map
+Dispatch row 6312: '2506C0720' not in coil/packet map
+Dispatch row 6317: '2506C0596' not in coil/packet map
+Dispatch row 6318: '2506C0734' not in coil/packet map
+Dispatch row 6319: '2506C0742' not in coil/packet map
+Dispatch row 6901: '2506C0895' not in coil/packet map
+Dispatch row 6903: '2506C0899' not in coil/packet map
+Dispatch row 6904: '2506C0890' not in coil/packet map
+Dispatch row 6907: '2506C0830' not in coil/packet map
+Dispatch row 6908: '2506C0877' not in coil/packet map
+Dispatch row 6911: '2506C0900' not in coil/packet map
+Dispatch row 6913: '2506C0889' not in coil/packet map
+Dispatch row 6914: '2506C0894' not in coil/packet map
+Dispatch row 6917: '2506C0886' not in coil/packet map
+Dispatch row 6926: '2506C0701' not in coil/packet map
+Dispatch row 6941: '2506C0546' not in coil/packet map
+Dispatch row 6942: '2506C0828' not in coil/packet map
+Dispatch row 6944: '2506C0898' not in coil/packet map
+Dispatch row 6946: '2506C0891' not in coil/packet map
+Dispatch row 6949: '2506C0909' not in coil/packet map
+Dispatch row 6951: '2506C0883' not in coil/packet map
+Dispatch row 6952: '2506C0892' not in coil/packet map
+Dispatch row 6959: '2506C0883' not in coil/packet map
+Dispatch row 6961: '2506C0876' not in coil/packet map
+Dispatch row 6967: '2506C0897' not in coil/packet map
+Dispatch row 6968: '2506C0834' not in coil/packet map
+Dispatch row 6971: '2506C0745' not in coil/packet map
+Dispatch row 6973: '2506C0905' not in coil/packet map
+Dispatch row 6977: '2506C0871' not in coil/packet map
+Dispatch row 6978: '2506C0907' not in coil/packet map
+Dispatch row 6979: '2506C0905' not in coil/packet map
+Dispatch row 6980: '2506C0881' not in coil/packet map
+Dispatch row 6985: '2506C0907' not in coil/packet map
+Dispatch row 6988: '2506C0687' not in coil/packet map
+Dispatch row 6994: '2506C0861' not in coil/packet map
+Dispatch row 6995: '2506C0858' not in coil/packet map
+Dispatch row 6996: '2506C0862' not in coil/packet map
+Dispatch row 7005: '2506C0888' not in coil/packet map
+Dispatch row 7007: '2506C0906' not in coil/packet map
+Dispatch row 7014: '2506C0887' not in coil/packet map
+Dispatch row 7016: '2506C0887' not in coil/packet map
+Dispatch row 7017: '2506C0887' not in coil/packet map
+Dispatch row 7029: '2506C0884' not in coil/packet map
+Dispatch row 7705: '2506C1022' not in coil/packet map
+Dispatch row 7707: '2506C0891' not in coil/packet map
+Dispatch row 7709: '2506C0971' not in coil/packet map
+Dispatch row 7710: '2506C0975' not in coil/packet map
+Dispatch row 7711: '2506C1010' not in coil/packet map
+Dispatch row 7712: '2506C1027' not in coil/packet map
+Dispatch row 7714: '2506C1005' not in coil/packet map
+Dispatch row 7715: '2506C0903' not in coil/packet map
+Dispatch row 7718: '2506C1033' not in coil/packet map
+Dispatch row 7721: '2506C1009' not in coil/packet map
+Dispatch row 7722: '2506C1005' not in coil/packet map
+Dispatch row 7723: '2506C1026' not in coil/packet map
+Dispatch row 7724: '2506C1023' not in coil/packet map
+Dispatch row 7725: '2506C1025' not in coil/packet map
+Dispatch row 7726: '2506C1026' not in coil/packet map
+Dispatch row 7727: '2506C1032' not in coil/packet map
+Dispatch row 7728: '2506C1032' not in coil/packet map
+Dispatch row 7730: '2506C1024' not in coil/packet map
+Dispatch row 7731: '2506C1017' not in coil/packet map
+Dispatch row 7732: '2506C1025' not in coil/packet map
+Dispatch row 7733: '2506C1026' not in coil/packet map
+Dispatch row 7734: '2506C1025' not in coil/packet map
+Dispatch row 7736: '2506C1017' not in coil/packet map
+Dispatch row 7739: '2506C1035' not in coil/packet map
+Dispatch row 7741: '2506C1031' not in coil/packet map
+Dispatch row 7744: '2506C1017' not in coil/packet map
+Dispatch row 7749: '2506C1017' not in coil/packet map
+Dispatch row 7759: '2506C0880' not in coil/packet map
+Dispatch row 7764: '2506C1000' not in coil/packet map
+Dispatch row 7770: '2506C0998' not in coil/packet map
+Dispatch row 7771: '2506C0984' not in coil/packet map
+Dispatch row 7778: '2506C0998' not in coil/packet map
+Dispatch row 7780: '2506C1001' not in coil/packet map
+Dispatch row 7782: '2506C1014' not in coil/packet map
+Dispatch row 7789: '2506C0902' not in coil/packet map
+Dispatch row 7795: '2506C0508' not in coil/packet map
+Dispatch row 7796: '2506C0417' not in coil/packet map
+Dispatch row 7799: '2506C1017' not in coil/packet map
+Dispatch row 7805: '2506C0838' not in coil/packet map
+Dispatch row 7813: '2506C0984' not in coil/packet map
+Dispatch row 7818: '2506C0564' not in coil/packet map
+Dispatch row 8715: '2506C1178' not in coil/packet map
+Dispatch row 8716: '2506C1194' not in coil/packet map
+Dispatch row 8717: '2506C1147' not in coil/packet map
+Dispatch row 8718: '2506C1121' not in coil/packet map
+Dispatch row 8719: '2506C1194' not in coil/packet map
+Dispatch row 8723: '2506C1190' not in coil/packet map
+Dispatch row 8724: '2506C1190' not in coil/packet map
+Dispatch row 8725: '2506C1110' not in coil/packet map
+Dispatch row 8728: '2506C0878' not in coil/packet map
+Dispatch row 8729: '2506C1194' not in coil/packet map
+Dispatch row 8730: '2506C1195' not in coil/packet map
+Dispatch row 8731: '2506C1207' not in coil/packet map
+Dispatch row 8732: '2506C1207' not in coil/packet map
+Dispatch row 8733: '2506C1154' not in coil/packet map
+Dispatch row 8734: '2506C1205' not in coil/packet map
+Dispatch row 8735: '2506C1206' not in coil/packet map
+Dispatch row 8736: '2506C1196' not in coil/packet map
+Dispatch row 8737: '2506C1196' not in coil/packet map
+Dispatch row 8738: '2506C0878' not in coil/packet map
+Dispatch row 8741: '2506C1196' not in coil/packet map
+Dispatch row 8744: '2506C1203' not in coil/packet map
+Dispatch row 8745: '2506C1204' not in coil/packet map
+Dispatch row 8748: '2506C1186' not in coil/packet map
+Dispatch row 8751: '2506C1113' not in coil/packet map
+Dispatch row 8753: '2506C1191' not in coil/packet map
+Dispatch row 8754: '2506C1136' not in coil/packet map
+Dispatch row 8756: '2506C1171' not in coil/packet map
+Dispatch row 8758: '2506C1146' not in coil/packet map
+Dispatch row 8759: '2506C1184' not in coil/packet map
+Dispatch row 8760: '2506C1185' not in coil/packet map
+Dispatch row 8761: '2506C1113' not in coil/packet map
+Dispatch row 8762: '2506C1202' not in coil/packet map
+Dispatch row 8764: '2506C1105' not in coil/packet map
+Dispatch row 8765: '2506C1111' not in coil/packet map
+Dispatch row 8766: '2506C1111' not in coil/packet map
+Dispatch row 8767: '2506C0846' not in coil/packet map
+Dispatch row 8768: '2506C1209' not in coil/packet map
+Dispatch row 8772: '2506C1109' not in coil/packet map
+Dispatch row 8773: '2506C1133' not in coil/packet map
+Dispatch row 8777: '2506C1133' not in coil/packet map
+Dispatch row 8781: '2506C1191' not in coil/packet map
+Dispatch row 8782: '2506C1166' not in coil/packet map
+Dispatch row 8783: '2506C0846' not in coil/packet map
+Dispatch row 8784: '2506C1172' not in coil/packet map
+Dispatch row 8785: '2506C1166' not in coil/packet map
+Dispatch row 8797: '2506C0880' not in coil/packet map
+Dispatch row 8799: '2506C0508' not in coil/packet map
+Dispatch row 8800: '2506C1180' not in coil/packet map
+Dispatch row 8807: '2506C0891' not in coil/packet map
+Dispatch row 8814: '2506C1199' not in coil/packet map
+Dispatch row 8815: '2506C1199' not in coil/packet map
+Dispatch row 8823: '2506C1142' not in coil/packet map
+Dispatch row 8824: '2506C1142' not in coil/packet map
+Dispatch row 8830: '2506c1233' not in coil/packet map
+Dispatch row 8838: '2506C1208' not in coil/packet map
+Dispatch row 8850: '2506C1161' not in coil/packet map
+Dispatch row 8852: '2506C0979' not in coil/packet map
+Dispatch row 8853: '2506C1184' not in coil/packet map
+Dispatch row 8863: '2506C0851' not in coil/packet map

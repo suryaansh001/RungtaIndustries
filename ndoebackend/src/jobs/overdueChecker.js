@@ -6,14 +6,15 @@ const runOverdueCheck = async () => {
   try {
     const now = new Date();
     const overdueInvoices = await prisma.invoice.findMany({
-      where: { status: 'PENDING', due_date: { lt: now } },
-      select: { id: true, invoice_number: true, product_id: true },
+      where: {
+        status: { in: ['GENERATED', 'SENT', 'PARTIALLY_PAID'] },
+        invoice_date: { lt: now },
+      },
+      select: { id: true, invoice_number: true },
     });
     if (overdueInvoices.length === 0) return;
     const invoiceIds = overdueInvoices.map((i) => i.id);
-    const productIds = [...new Set(overdueInvoices.map((i) => i.product_id))];
     await prisma.invoice.updateMany({ where: { id: { in: invoiceIds } }, data: { status: 'OVERDUE' } });
-    await prisma.product.updateMany({ where: { id: { in: productIds } }, data: { billing_status: 'OVERDUE' } });
     logger.info(`Overdue check: ${overdueInvoices.length} invoice(s) marked OVERDUE`);
   } catch (err) {
     logger.error(`Overdue checker failed: ${err.message}`);
