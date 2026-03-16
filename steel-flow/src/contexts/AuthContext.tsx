@@ -25,11 +25,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('ric_token');
-    const storedUser = localStorage.getItem('ric_user');
-    if (token && storedUser) {
-      try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
-    }
+    const bootstrapAuth = async () => {
+      const token = localStorage.getItem('ric_token');
+      const storedUser = localStorage.getItem('ric_user');
+
+      if (storedUser) {
+        try { setUser(JSON.parse(storedUser)); } catch { /* ignore invalid local cache */ }
+      }
+
+      if (!token) return;
+
+      try {
+        const { data } = await api.get('/auth/me');
+        const me = data?.data;
+        if (me) {
+          const normalizedUser: AuthUser = {
+            id: me.id,
+            username: me.username,
+            role: me.role,
+            email: me.email,
+          };
+          localStorage.setItem('ric_user', JSON.stringify(normalizedUser));
+          localStorage.setItem('ric_role', normalizedUser.role);
+          localStorage.setItem('ric_username', normalizedUser.username);
+          setUser(normalizedUser);
+        }
+      } catch {
+        // Let api interceptor handle refresh token flow and fallback logout.
+      }
+    };
+
+    void bootstrapAuth();
   }, []);
 
   const login = async (username: string, password: string) => {

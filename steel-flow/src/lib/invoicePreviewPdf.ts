@@ -185,7 +185,7 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
   `).join('');
 
   return `
-  <div id="invoice-root" style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #fff; border: 1px solid #000; width: 900px;">
+  <div id="invoice-root" style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #fff; border: 1px solid #000; width: 794px; box-sizing: border-box;">
     <div style="text-align:center;font-weight:bold;font-size:15px;padding:6px 8px;border-bottom:1px solid #000;letter-spacing:1px;">Tax Invoice</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;">
@@ -324,11 +324,14 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
 };
 
 export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
+  // A4 width at ~96 DPI, used as html rendering baseline for predictable scaling.
+  const A4_HTML_WIDTH_PX = 794;
+
   const host = document.createElement('div');
   host.style.position = 'fixed';
   host.style.left = '-10000px';
   host.style.top = '0';
-  host.style.width = '900px';
+  host.style.width = `${A4_HTML_WIDTH_PX}px`;
 
   host.innerHTML = `
     <style>
@@ -351,17 +354,19 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
     throw new Error('Unable to render invoice preview for PDF');
   }
 
-  const doc = new jsPDF('p', 'pt', 'a4');
+  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  const marginMm = 8;
+  const printableWidthMm = doc.internal.pageSize.getWidth() - (marginMm * 2);
 
   await new Promise<void>((resolve) => {
     (doc as jsPDF & { html: (element: HTMLElement, opts: Record<string, unknown>) => void }).html(root, {
-      x: 20,
-      y: 20,
-      width: 555,
-      windowWidth: 900,
-      autoPaging: 'text',
+      x: marginMm,
+      y: marginMm,
+      width: printableWidthMm,
+      windowWidth: A4_HTML_WIDTH_PX,
+      autoPaging: 'slice',
       html2canvas: {
-        scale: 2,
+        scale: 1.5,
         backgroundColor: '#ffffff',
       },
       callback: (pdf: jsPDF) => {

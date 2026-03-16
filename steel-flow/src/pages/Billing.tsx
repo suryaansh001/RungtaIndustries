@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import {
   FileText, Plus, Zap, Search, DownloadCloud, MoreHorizontal,
   Eye, Edit, Send, XCircle, DollarSign, AlertTriangle, CheckCircle,
-  Clock, Receipt,
+  Clock, Receipt, Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -73,6 +73,7 @@ export default function Billing() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState<{ invoiceId: string; target: string } | null>(null);
 
   // KPIs
   const total = invoices.reduce((s, i) => s + i.total, 0);
@@ -124,20 +125,59 @@ export default function Billing() {
     await refetch();
   };
 
-  const handleMarkAsPaid = async (invoiceId: string, invoiceNumber: string) => {
+  const handleUpdateStatus = async (
+    invoiceId: string,
+    invoiceNumber: string,
+    nextStatus: 'SENT' | 'PAID' | 'CANCELLED',
+    successTitle: string,
+    successDescription: string
+  ) => {
     try {
-      await invoiceService.updateStatus(invoiceId, 'PAID');
+      setStatusUpdating({ invoiceId, target: nextStatus });
+      await invoiceService.updateStatus(invoiceId, nextStatus);
       await refetch();
       toast({
-        title: 'Invoice marked as paid',
-        description: `${invoiceNumber} has been fully paid.`,
+        title: successTitle,
+        description: successDescription,
       });
     } catch (error: unknown) {
       const message = (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
         || (error as { message?: string })?.message
         || 'Failed to update invoice status';
       toast({ title: message, variant: 'destructive' });
+    } finally {
+      setStatusUpdating(null);
     }
+  };
+
+  const handleMarkAsPaid = async (invoiceId: string, invoiceNumber: string) => {
+    await handleUpdateStatus(
+      invoiceId,
+      invoiceNumber,
+      'PAID',
+      'Invoice marked as paid',
+      `${invoiceNumber} has been fully paid.`
+    );
+  };
+
+  const handleMarkAsSent = async (invoiceId: string, invoiceNumber: string) => {
+    await handleUpdateStatus(
+      invoiceId,
+      invoiceNumber,
+      'SENT',
+      'Invoice marked as sent',
+      `${invoiceNumber} status updated to Sent.`
+    );
+  };
+
+  const handleCancelInvoice = async (invoiceId: string, invoiceNumber: string) => {
+    await handleUpdateStatus(
+      invoiceId,
+      invoiceNumber,
+      'CANCELLED',
+      'Invoice cancelled',
+      `${invoiceNumber} has been cancelled.`
+    );
   };
 
   const handleDownloadInvoicePdf = async (invoiceId: string) => {
@@ -154,6 +194,18 @@ export default function Billing() {
 
   return (
     <AppLayout>
+      {statusUpdating && (
+        <div className="fixed inset-0 z-[120] bg-background/70 backdrop-blur-sm flex items-center justify-center">
+          <div className="rounded-lg border border-border bg-card px-6 py-5 flex items-center gap-3 shadow-lg">
+            <Loader2 className="h-5 w-5 animate-spin text-info" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Updating invoice status...</p>
+              <p className="text-xs text-muted-foreground">Please wait until the status transition completes.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PageHeader
         title="Billing"
         description="Invoice lifecycle management — create, track and collect."
@@ -352,16 +404,16 @@ export default function Billing() {
                             </DropdownMenuItem>
                           )}
                           {['generated', 'partially_paid'].includes(inv.status) && (
-                            <DropdownMenuItem className="text-foreground">
+                            <DropdownMenuItem className="text-foreground" disabled={!!statusUpdating} onClick={() => handleMarkAsSent(inv.id, inv.invoiceNumber)}>
                               <Send className="h-3.5 w-3.5 mr-2" /> Mark as Sent
                             </DropdownMenuItem>
                           )}
                           {inv.status !== 'paid' && inv.status !== 'draft' && (
-                            <DropdownMenuItem className="text-foreground" onClick={() => handleMarkAsPaid(inv.id, inv.invoiceNumber)}>
+                            <DropdownMenuItem className="text-foreground" disabled={!!statusUpdating} onClick={() => handleMarkAsPaid(inv.id, inv.invoiceNumber)}>
                               <DollarSign className="h-3.5 w-3.5 mr-2" /> Mark as Paid
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem className="text-destructive">
+                          <DropdownMenuItem className="text-destructive" disabled={!!statusUpdating} onClick={() => handleCancelInvoice(inv.id, inv.invoiceNumber)}>
                             <XCircle className="h-3.5 w-3.5 mr-2" /> Cancel
                           </DropdownMenuItem>
                         </DropdownMenuContent>
