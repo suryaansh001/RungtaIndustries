@@ -31,6 +31,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useApi } from '@/hooks/useApi';
 import { invoiceService, type InvoiceListItem, type InvoicePayload } from '@/lib/services/invoiceService';
+import { generateInvoicePdf } from '@/lib/generateInvoicePdf';
+import { mockBillingSettings, type Invoice } from '@/lib/billing-data';
 
 const statusOptions: { value: InvoiceStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All Statuses' },
@@ -96,6 +98,61 @@ export default function Billing() {
   const handleInvoiceSave = async (invoice: InvoicePayload) => {
     await invoiceService.create(invoice);
     await refetch();
+  };
+
+  const handleDownloadInvoicePdf = async (invoiceId: string) => {
+    try {
+      const detail = await invoiceService.getOne(invoiceId);
+      const pdfInvoice: Invoice = {
+        id: detail.id,
+        invoiceNumber: detail.invoiceNumber,
+        clientId: detail.clientId || '',
+        clientName: detail.clientName || detail.buyer?.companyName || '-',
+        billingType: 'manual',
+        invoiceDate: detail.invoiceDate,
+        dueDate: detail.dueDate || detail.invoiceDate,
+        paymentTerms: detail.paymentTerms || 'Net 15',
+        lineItems: (detail.lineItems || []).map((li: {
+          id: string;
+          description: string;
+          quantity: number;
+          rate: number;
+          taxableAmount?: number;
+        }) => ({
+          id: li.id,
+          description: li.description,
+          quantity: Number(li.quantity) || 0,
+          rate: Number(li.rate) || 0,
+          amount: Number(li.taxableAmount) || (Number(li.quantity) || 0) * (Number(li.rate) || 0),
+        })),
+        subtotal: Number(detail.totals?.totalTaxableValue ?? detail.subtotal ?? 0),
+        gstPercent: 18,
+        gstAmount: Number(detail.totals?.cgstAmount ?? 0) + Number(detail.totals?.sgstAmount ?? 0) + Number(detail.totals?.igstAmount ?? 0),
+        roundOff: Number(detail.totals?.roundOff ?? 0),
+        total: Number(detail.totals?.totalInvoiceAmount ?? detail.total ?? 0),
+        paid: Number(detail.paid ?? 0),
+        outstanding: Number(detail.outstanding ?? 0),
+        status: (detail.status || 'draft') as Invoice['status'],
+        notes: detail.remarks || '',
+      };
+
+      generateInvoicePdf(pdfInvoice, {
+        ...mockBillingSettings,
+        companyName: detail.seller?.companyName || mockBillingSettings.companyName,
+        companyAddress: detail.seller?.fullAddress || mockBillingSettings.companyAddress,
+        bankDetails: [
+          detail.bankDetails?.accountHolderName ? `A/c Holder: ${detail.bankDetails.accountHolderName}` : '',
+          detail.bankDetails?.bankName ? `Bank: ${detail.bankDetails.bankName}` : '',
+          detail.bankDetails?.accountNumber ? `A/c: ${detail.bankDetails.accountNumber}` : '',
+          detail.bankDetails?.branchIfscCode ? `IFSC: ${detail.bankDetails.branchIfscCode}` : '',
+        ].filter(Boolean).join(' | ') || mockBillingSettings.bankDetails,
+      });
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
+        || (error as { message?: string })?.message
+        || 'Failed to download invoice PDF';
+      toast({ title: message, variant: 'destructive' });
+    }
   };
 
   return (
@@ -283,12 +340,7 @@ export default function Billing() {
                         <DropdownMenuContent align="end" className="bg-popover border-border text-sm">
                           <DropdownMenuItem
                             className="text-foreground"
-                            onClick={() => {
-                              toast({
-                                title: 'Use invoice preview',
-                                description: 'Open the invoice in preview before exporting PDF.',
-                              });
-                            }}
+                            onClick={() => handleDownloadInvoicePdf(inv.id)}
                           >
                             <FileText className="h-3.5 w-3.5 mr-2" /> Download PDF
                           </DropdownMenuItem>
