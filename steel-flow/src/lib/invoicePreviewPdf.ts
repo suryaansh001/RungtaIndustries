@@ -211,18 +211,20 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;">
-      <div style="padding:5px;border-right:1px solid #000;">
-        <p style="font-weight:600;margin:0 0 2px 0;text-decoration:underline;font-size:7.5px;">Consignee (Ship to)</p>
-        <p style="font-weight:bold;margin:0;font-size:7.5px;">${esc(detail.consignee?.companyName || '-')}</p>
-        <p style="margin:0;line-height:1.4;font-size:7.5px;">${esc(detail.consignee?.address)}</p>
-        ${detail.consignee?.gstinUin ? `<p style="margin:2px 0 0 0;font-size:7.5px;">GSTIN: ${esc(detail.consignee.gstinUin)}</p>` : ''}
+    <div style="border-bottom:1px solid #000;">
+      <div style="padding:5px;border-bottom:1px solid #000;">
+        <p style="font-weight:600;margin:0 0 3px 0;text-decoration:underline;font-size:7.5px;">Consignee (Ship to)</p>
+        <p style="font-weight:bold;margin:0 0 2px 0;font-size:8px;">${esc(detail.consignee?.companyName || '-')}</p>
+        <p style="margin:0;line-height:1.5;font-size:7.5px;">${esc(detail.consignee?.address)}</p>
+        ${detail.consignee?.gstinUin ? `<p style="margin:3px 0 0 0;font-size:7.5px;">GSTIN: <strong>${esc(detail.consignee.gstinUin)}</strong></p>` : ''}
+        ${detail.consignee?.stateName ? `<p style="margin:0;font-size:7.5px;">State: ${esc(detail.consignee.stateName)}</p>` : ''}
       </div>
       <div style="padding:5px;">
-        <p style="font-weight:600;margin:0 0 2px 0;text-decoration:underline;font-size:7.5px;">Buyer (Bill to)</p>
-        <p style="font-weight:bold;margin:0;font-size:7.5px;">${esc(detail.buyer?.companyName || '-')}</p>
-        <p style="margin:0;line-height:1.4;font-size:7.5px;">${esc(detail.buyer?.address)}</p>
-        ${detail.buyer?.gstinUin ? `<p style="margin:2px 0 0 0;font-size:7.5px;">GSTIN: ${esc(detail.buyer.gstinUin)}</p>` : ''}
+        <p style="font-weight:600;margin:0 0 3px 0;text-decoration:underline;font-size:7.5px;">Buyer (Bill to)</p>
+        <p style="font-weight:bold;margin:0 0 2px 0;font-size:8px;">${esc(detail.buyer?.companyName || '-')}</p>
+        <p style="margin:0;line-height:1.5;font-size:7.5px;">${esc(detail.buyer?.address)}</p>
+        ${detail.buyer?.gstinUin ? `<p style="margin:3px 0 0 0;font-size:7.5px;">GSTIN: <strong>${esc(detail.buyer.gstinUin)}</strong></p>` : ''}
+        ${detail.buyer?.stateName ? `<p style="margin:0;font-size:7.5px;">State: ${esc(detail.buyer.stateName)}</p>` : ''}
       </div>
     </div>
 
