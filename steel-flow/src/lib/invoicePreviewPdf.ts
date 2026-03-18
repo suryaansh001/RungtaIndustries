@@ -186,43 +186,43 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
   `).join('');
 
   return `
-  <div id="invoice-root" style="font-family: Arial, Helvetica, sans-serif; font-size: 7px; color: #000; background: #fff; border: 1px solid #000; width: 100%; box-sizing: border-box; margin: 0; padding: 0; line-height: 1.1;">
-    <div style="text-align:center;font-weight:bold;font-size:9px;padding:2px 3px;border-bottom:1px solid #000;letter-spacing:0.5px;">Tax Invoice</div>
+  <div id="invoice-root" style="font-family: Arial, Helvetica, sans-serif; font-size: 7.5px; color: #000; background: #fff; border: 1px solid #000; width: 100%; box-sizing: border-box; margin: 0; padding: 0; line-height: 1.4;">
+    <div style="text-align:center;font-weight:bold;font-size:9.5px;padding:4px 5px;border-bottom:1px solid #000;letter-spacing:0.5px;">Tax Invoice</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;">
-      <div style="padding:2px;border-right:1px solid #000;">
-        <p style="font-weight:bold;font-size:8px;margin:0 0 1px 0;">${esc(detail.seller?.companyName)}</p>
-        <p style="margin:0;line-height:1.1;font-size:7px;">${esc(detail.seller?.fullAddress)}</p>
-        <p style="margin:1px 0 0 0;font-size:7px;">GSTIN: <strong>${esc(detail.seller?.gstinUin)}</strong></p>
-        <p style="margin:0;font-size:7px;">State: ${esc(detail.seller?.stateName)}</p>
-        ${detail.seller?.email ? `<p style="margin:0;font-size:7px;">${esc(detail.seller.email)}</p>` : ''}
+      <div style="padding:5px;border-right:1px solid #000;">
+        <p style="font-weight:bold;font-size:8.5px;margin:0 0 3px 0;">${esc(detail.seller?.companyName)}</p>
+        <p style="margin:0;line-height:1.4;font-size:7.5px;">${esc(detail.seller?.fullAddress)}</p>
+        <p style="margin:2px 0 0 0;font-size:7.5px;">GSTIN: <strong>${esc(detail.seller?.gstinUin)}</strong></p>
+        <p style="margin:0;font-size:7.5px;">State: ${esc(detail.seller?.stateName)}</p>
+        ${detail.seller?.email ? `<p style="margin:0;font-size:7.5px;">${esc(detail.seller.email)}</p>` : ''}
       </div>
-      <div style="padding:2px;">
-        <table style="width:100%;border-collapse:collapse;font-size:7px;">
+      <div style="padding:5px;">
+        <table style="width:100%;border-collapse:collapse;font-size:7.5px;">
           <tbody>
-            <tr><td class="cell-head">Invoice No.</td><td class="cell-value" style="font-weight:600;font-size:7px;">${esc(detail.invoiceNumber)}</td></tr>
-            <tr><td class="cell-head">Dated</td><td class="cell-value" style="font-size:7px;">${esc(detail.invoiceDate)}</td></tr>
-            <tr><td class="cell-head">Delivery Note</td><td class="cell-value" style="font-size:7px;">${esc(detail.deliveryNote)}</td></tr>
-            <tr><td class="cell-head">Payment Terms</td><td class="cell-value" style="font-size:7px;">${esc(detail.paymentTerms)}</td></tr>
-            <tr><td class="cell-head">Reference</td><td class="cell-value" style="font-size:7px;">${esc(detail.referenceNoDate)}</td></tr>
-            <tr><td class="cell-head">Dispatch</td><td class="cell-value" style="font-size:7px;">${esc(detail.destination)}</td></tr>
+            <tr><td class="cell-head">Invoice No.</td><td class="cell-value" style="font-weight:600;">${esc(detail.invoiceNumber)}</td></tr>
+            <tr><td class="cell-head">Dated</td><td class="cell-value">${esc(detail.invoiceDate)}</td></tr>
+            <tr><td class="cell-head">Delivery Note</td><td class="cell-value">${esc(detail.deliveryNote)}</td></tr>
+            <tr><td class="cell-head">Payment Terms</td><td class="cell-value">${esc(detail.paymentTerms)}</td></tr>
+            <tr><td class="cell-head">Reference</td><td class="cell-value">${esc(detail.referenceNoDate)}</td></tr>
+            <tr><td class="cell-head">Dispatch</td><td class="cell-value">${esc(detail.destination)}</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;">
-      <div style="padding:2px;border-right:1px solid #000;">
-        <p style="font-weight:600;margin:0 0 1px 0;text-decoration:underline;font-size:7px;">Consignee (Ship to)</p>
-        <p style="font-weight:bold;margin:0;font-size:7px;">${esc(detail.consignee?.companyName || '-')}</p>
-        <p style="margin:0;line-height:1.1;font-size:7px;">${esc(detail.consignee?.address)}</p>
-        ${detail.consignee?.gstinUin ? `<p style="margin:0;font-size:7px;">GSTIN: ${esc(detail.consignee.gstinUin)}</p>` : ''}
+      <div style="padding:5px;border-right:1px solid #000;">
+        <p style="font-weight:600;margin:0 0 2px 0;text-decoration:underline;font-size:7.5px;">Consignee (Ship to)</p>
+        <p style="font-weight:bold;margin:0;font-size:7.5px;">${esc(detail.consignee?.companyName || '-')}</p>
+        <p style="margin:0;line-height:1.4;font-size:7.5px;">${esc(detail.consignee?.address)}</p>
+        ${detail.consignee?.gstinUin ? `<p style="margin:2px 0 0 0;font-size:7.5px;">GSTIN: ${esc(detail.consignee.gstinUin)}</p>` : ''}
       </div>
-      <div style="padding:2px;">
-        <p style="font-weight:600;margin:0 0 1px 0;text-decoration:underline;font-size:7px;">Buyer (Bill to)</p>
-        <p style="font-weight:bold;margin:0;font-size:7px;">${esc(detail.buyer?.companyName || '-')}</p>
-        <p style="margin:0;line-height:1.1;font-size:7px;">${esc(detail.buyer?.address)}</p>
-        ${detail.buyer?.gstinUin ? `<p style="margin:0;font-size:7px;">GSTIN: ${esc(detail.buyer.gstinUin)}</p>` : ''}
+      <div style="padding:5px;">
+        <p style="font-weight:600;margin:0 0 2px 0;text-decoration:underline;font-size:7.5px;">Buyer (Bill to)</p>
+        <p style="font-weight:bold;margin:0;font-size:7.5px;">${esc(detail.buyer?.companyName || '-')}</p>
+        <p style="margin:0;line-height:1.4;font-size:7.5px;">${esc(detail.buyer?.address)}</p>
+        ${detail.buyer?.gstinUin ? `<p style="margin:2px 0 0 0;font-size:7.5px;">GSTIN: ${esc(detail.buyer.gstinUin)}</p>` : ''}
       </div>
     </div>
 
@@ -256,23 +256,23 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
       </tbody>
     </table>
 
-    <div style="padding:2px 3px;border-bottom:1px solid #000;display:flex;justify-content:space-between;align-items:baseline;font-size:7px;">
+    <div style="padding:4px 5px;border-bottom:1px solid #000;display:flex;justify-content:space-between;align-items:baseline;font-size:7.5px;">
       <span><strong>Amount in words:</strong> <em>${esc(totals.totalInvoiceAmountWords)}</em></span>
       <span style="font-weight:600;white-space:nowrap;">E. & O.E</span>
     </div>
 
-    <div style="padding:2px 3px;border-bottom:1px solid #000;font-size:7px;">
-      <p style="font-weight:700;margin:0 0 2px 0;font-size:7px;">Tax Analysis</p>
+    <div style="padding:4px 5px;border-bottom:1px solid #000;font-size:7.5px;">
+      <p style="font-weight:700;margin:0 0 3px 0;font-size:7.5px;">Tax Analysis</p>
       <table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr style="background:#f0f0f0;">
-            <th class="th" style="font-size:7px;">HSN/SAC</th>
-            <th class="th c-right" style="font-size:7px;">Taxable</th>
-            <th class="th c-right" style="font-size:7px;">CGST%</th>
-            <th class="th c-right" style="font-size:7px;">CGST</th>
-            <th class="th c-right" style="font-size:7px;">SGST%</th>
-            <th class="th c-right" style="font-size:7px;">SGST</th>
-            <th class="th c-right" style="font-size:7px;">Total</th>
+            <th class="th" style="font-size:7.5px;">HSN/SAC</th>
+            <th class="th c-right" style="font-size:7.5px;">Taxable</th>
+            <th class="th c-right" style="font-size:7.5px;">CGST%</th>
+            <th class="th c-right" style="font-size:7.5px;">CGST</th>
+            <th class="th c-right" style="font-size:7.5px;">SGST%</th>
+            <th class="th c-right" style="font-size:7.5px;">SGST</th>
+            <th class="th c-right" style="font-size:7.5px;">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -290,27 +290,27 @@ const buildInvoiceHtml = (detail: InvoiceDetail) => {
       </table>
     </div>
 
-    <div style="padding:2px 3px;border-bottom:1px solid #000;font-size:7px;">
+    <div style="padding:4px 5px;border-bottom:1px solid #000;font-size:7.5px;">
       <strong>Tax in words:</strong> <em>${esc(taxAmountWords)}</em>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;font-size:7px;">
-      <div style="padding:2px;border-right:1px solid #000;">
-        <p style="font-weight:700;margin:0 0 2px 0;font-size:7px;">Bank Details</p>
-        <p style="margin:0;font-size:7px;">A/c: <strong>${esc(detail.bankDetails?.accountHolderName)}</strong></p>
-        <p style="margin:0;font-size:7px;">Bank: ${esc(detail.bankDetails?.bankName)}</p>
-        <p style="margin:0;font-size:7px;">No.: <strong>${esc(detail.bankDetails?.accountNumber)}</strong></p>
-        <p style="margin:0;font-size:7px;">IFSC: ${esc(detail.bankDetails?.branchIfscCode)}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;font-size:7.5px;">
+      <div style="padding:5px;border-right:1px solid #000;">
+        <p style="font-weight:700;margin:0 0 3px 0;font-size:7.5px;">Bank Details</p>
+        <p style="margin:0;font-size:7.5px;">A/c: <strong>${esc(detail.bankDetails?.accountHolderName)}</strong></p>
+        <p style="margin:0;font-size:7.5px;">Bank: ${esc(detail.bankDetails?.bankName)}</p>
+        <p style="margin:0;font-size:7.5px;">No.: <strong>${esc(detail.bankDetails?.accountNumber)}</strong></p>
+        <p style="margin:0;font-size:7.5px;">IFSC: ${esc(detail.bankDetails?.branchIfscCode)}</p>
       </div>
-      <div style="padding:2px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;min-height:40px;">
-        <p style="margin:0;font-size:7px;font-weight:600;">for ${esc(detail.seller?.companyName)}</p>
-        <div style="margin-top:8px;">
-          <p style="margin:0;font-size:7px;font-weight:600;border-top:1px solid #000;padding-top:2px;min-width:120px;">${esc(detail.authorizedSignatory || 'Auth. Signatory')}</p>
+      <div style="padding:5px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;min-height:50px;">
+        <p style="margin:0;font-size:7.5px;font-weight:600;">for ${esc(detail.seller?.companyName)}</p>
+        <div style="margin-top:12px;">
+          <p style="margin:0;font-size:7.5px;font-weight:600;border-top:1px solid #000;padding-top:3px;min-width:120px;">${esc(detail.authorizedSignatory || 'Auth. Signatory')}</p>
         </div>
       </div>
     </div>
 
-    <div style="text-align:center;padding:2px 3px;border-top:1px solid #000;font-size:6px;color:#333;">Computer Generated Invoice - Valid without signature</div>
+    <div style="text-align:center;padding:4px 5px;border-top:1px solid #000;font-size:6.5px;color:#333;">Computer Generated Invoice - Valid without signature</div>
   </div>
   `;
 };
@@ -340,27 +340,29 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
       #invoice-root table, #invoice-root th, #invoice-root td { border-collapse: collapse; }
       #invoice-root .th, #invoice-root .td {
         border: 1px solid #000;
-        padding: 1px 2px;
+        padding: 3px 4px;
         text-align: left;
         vertical-align: top;
-        font-size: 7px;
-        line-height: 1.1;
+        font-size: 7.5px;
+        line-height: 1.4;
       }
       #invoice-root .cell-head {
         border: 1px solid #000;
-        padding: 1px 2px;
+        padding: 3px 4px;
         font-weight: 600;
         width: 45%;
-        font-size: 7px;
+        font-size: 7.5px;
+        line-height: 1.4;
       }
       #invoice-root .cell-value {
         border: 1px solid #000;
-        padding: 1px 2px;
-        font-size: 7px;
+        padding: 3px 4px;
+        font-size: 7.5px;
+        line-height: 1.4;
       }
       #invoice-root .c-right  { text-align: right; }
       #invoice-root .c-center { text-align: center; }
-      #invoice-root p { margin: 0; line-height: 1.2; }
+      #invoice-root p { margin: 0; line-height: 1.4; }
     </style>
     ${buildInvoiceHtml(detail)}
   `;
