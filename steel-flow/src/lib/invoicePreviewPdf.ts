@@ -378,13 +378,15 @@ export async function downloadInvoicePreviewPdf(detail: InvoiceDetail) {
 
   try {
     // Capture the invoice HTML as an image
+    // scale:2 for sharpness; do NOT pass explicit `width` — it conflicts with scale
+    // and causes the canvas to capture only a zoomed-in portion of the content.
     const canvas = await html2canvas(root, {
       scale: 2,
-      width: RENDER_W_PX,
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       allowTaint: true,
+      windowWidth: RENDER_W_PX,
     });
 
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
